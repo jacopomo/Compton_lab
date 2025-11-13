@@ -1,15 +1,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-file = r"Dati/Prima_misura_prova.dat"
+file = r"hist_Co60.dat"
 
 dat = np.loadtxt(file, dtype=int, unpack=True)
-xx = np.linspace(0,9000,len(dat))
 
 new = np.array([])
 for i,mis in enumerate(dat):
     if mis != 0:
         new = np.concatenate((new, np.full(mis, i)))
 
-plt.hist(new, bins=100)
+plt
+
+plt.hist(new, bins=4096)
 plt.show()
