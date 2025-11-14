@@ -1,7 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-file = r"hist_Co60.dat"
+file_name = input("Nome file -> ")
+file = r"Dati/Calibration/" + file_name
+
+resize_factor = int(input("Resize factor dell'istogramma -> "))
+bins_tot = 8192
+num_bins = int(8192/resize_factor)
+
 
 dat = np.loadtxt(file, dtype=int, unpack=True)
 
@@ -12,5 +18,5 @@ for i,mis in enumerate(dat):
 
 plt
 
-plt.hist(new, bins=4096)
+plt.hist(new, bins=num_bins)
 plt.show()
