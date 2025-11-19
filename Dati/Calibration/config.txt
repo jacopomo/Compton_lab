@@ -1,6 +1,6 @@
-#Element    #range      #peak1_bin  #peak1_eng  #peak2_bin  #peak2_eng  #peak3_bin  #peak3_eng  #peak4_bin  #peak4_eng  #Eneble
-Am241       [20,350]    240         59.9        100         43,4        70          33          40          26          0
-Co60        [5000,6000] 5400        1170        4775        1330                                                        1
-Cs137       [2000,3200] 2725        660                                                                                 1
-Na22        [1500,2600] 2100        511                                                                                 1
-Sr90                                                                                                                    0
+#Element    #range      #peak1_bin  #peak1_eng  #peak2_bin  #peak2_eng  #peak3_bin  #peak3_eng  #peak4_bin  #peak4_eng  
+Am241       [20,350]    240         59.9        100         43,4        70          33          40          26          
+Co60        [5000,6000] 5400        1170        4775        1330                                                        
+Cs137       [2000,3200] 2725        660                                                                                 
+Na22        [1500,2600] 2100        511                                                                                 
+Sr90                                                                                                                    
