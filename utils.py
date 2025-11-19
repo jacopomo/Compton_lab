@@ -53,3 +53,5 @@ def gauss(x, mu, sigma, A):
     """
     return A * np.exp(-0.5 * ((x-mu)/sigma)**2)
 
+    
+
