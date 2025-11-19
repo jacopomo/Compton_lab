@@ -16,7 +16,6 @@ for i,mis in enumerate(dat):
     if mis != 0:
         new = np.concatenate((new, np.full(mis, i)))
 
-plt
 
-plt.hist(new, bins=num_bins)
+count = plt.hist(new, bins=num_bins, histtype='step')
 plt.show()
