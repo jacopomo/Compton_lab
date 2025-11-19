@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+import time
 
 import utils as u
 
@@ -18,25 +19,10 @@ calibration_files = u.searchfiles(calibration_dir, "dat")
 config_cal_file = os.path.join(calibration_dir, "config.txt")
 
 #Generate a dict for configuration values for calibration files
-df = pd.read_csv(config_cal_file,
-                 sep=r"\s+",
-                 engine="python",
-                 dtype=str)
-df = df.replace({np.nan: None})
+config_cal_dict = u.gen_dict(config_cal_file)
 
-value = {}
-key_col = df.columns[0]
-
-for _,row in df.iterrows():
-    main_key = row[key_col]
-    nested = {}
-
-    for col,val in row.items():
-        if col == key_col:
-            continue
-        if val is not None:
-            nested[col] = val
-    value[main_key] = nested
-
-
+for element,_dict in config_cal_dict.items():
+    path = next((x for x in calibration_files if element in x), None)
+    unbinned_data = u.unbin(path)
+    _dict["data"] = unbinned_data
 
