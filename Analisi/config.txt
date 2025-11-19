@@ -1,3 +1,7 @@
-#Directory dei file di calibrazione
+#Directory dei file di calibrazione (relativo)
+
 ../Dati/Calibration
+
 #Output directory per i salvare i risultati
+
+../Dati/Calibration/Processed
