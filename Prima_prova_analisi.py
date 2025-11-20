@@ -10,12 +10,9 @@ num_bins = int(8192/resize_factor)
 
 
 dat = np.loadtxt(file, dtype=int, unpack=True)
-
-new = np.array([])
-for i,mis in enumerate(dat):
-    if mis != 0:
-        new = np.concatenate((new, np.full(mis, i)))
+bin_indices = np.arange(dat.size, dtype=int)
+unbinned = np.repeat(bin_indices, dat)
 
 
-count = plt.hist(new, bins=num_bins, histtype='step')
+count = plt.hist(unbinned, bins=num_bins, histtype='step')
 plt.show()
