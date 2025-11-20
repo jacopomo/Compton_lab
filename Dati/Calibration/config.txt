@@ -1,4 +1,4 @@
-Element     range       peak1_bin   peak1_eng   peak2_bin   peak2_eng   peak3_bin   peak3_eng   peak4_bin   peak4_eng  
+Element     range       peak1_bin   peak1_eng   peak2_bin   peak2_eng   peak3_bin   peak3_eng   peak4_bin   peak4_eng
 str         list        int         float       int         float       int         float       int         float
 Am241       [20,350]    240         59.9        100         43.4        70          33          40          26          
 Co60        [5000,6000] 5400        1170        4775        1330                                                        

@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from concurrent.futures import ProcessPoolExecutor
+from scipy.optimize import curve_fit
 import os
 import time
 
@@ -16,13 +18,26 @@ cfg = np.loadtxt(config_file,
 
 calibration_dir = os.path.join(tot_path, cfg[0])
 calibration_files = u.searchfiles(calibration_dir, "dat")
-config_cal_file = os.path.join(calibration_dir, "config.txt")
+
+file_map = {}
+for f in calibration_files:
+    base = os.path.basename(f)
+    stem = os.path.splitext(base)[0]
+    file_map[stem] = f
+
 
 #Generate a dict for configuration values for calibration files
+config_cal_file = os.path.join(calibration_dir, "config.txt")
 config_cal_dict = u.gen_dict(config_cal_file)
 
-for element,_dict in config_cal_dict.items():
-    path = next((x for x in calibration_files if element in x), None)
+#Assign unbinned data to each element's dict
+for element, _dict in config_cal_dict.items():
+    path = file_map.get(element)
+    if path is None:
+        continue
     unbinned_data = u.unbin(path)
     _dict["data"] = unbinned_data
+
+
+
 
