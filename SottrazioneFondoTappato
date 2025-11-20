@@ -1,0 +1,56 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+file_fondo_name = input("Nome file di FONDO (background) -> ")
+file_fondo = r"Dati/Calibration/Background/" + file_fondo_name
+resize_factor = int(input("Resize factor dell'istogramma -> "))
+num_bins = int(8192 / resize_factor)
+
+
+dat_fondo = np.loadtxt(file_fondo, dtype=int, unpack=True)
+unbinned_fondo = np.repeat(np.arange(dat_fondo.size, dtype=int), dat_fondo)
+
+plt.figure()
+counts_fondo, bin_edges, _ = plt.hist(unbinned_fondo, bins=num_bins, histtype='step', visible=False)
+plt.close() 
+bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+
+file_segnale_name = input("\nNome file di SEGNALE (Signal + Background) -> ")
+file_segnale = r"Dati/Calibration/Background/" + file_segnale_name 
+
+dat_segnale = np.loadtxt(file_segnale, dtype=int, unpack=True)
+unbinned_segnale = np.repeat(np.arange(dat_segnale.size, dtype=int), dat_segnale)
+
+plt.figure()
+counts_segnale, _, _ = plt.hist(unbinned_segnale, bins=num_bins, histtype='step', visible=False)
+plt.close()
+
+try:
+    low_norm_channel = float(input("Canale iniziale ORIGINALE per la normalizzazione -> "))
+    high_norm_channel = float(input("Canale finale ORIGINALE per la normalizzazione -> "))
+except ValueError:
+    print("Input non valido. Inserire numeri validi.")
+    exit()
+
+# Trova gli indici dei bin per la regione di normalizzazione
+norm_indices = np.where((bin_centers >= low_norm_channel) & (bin_centers <= high_norm_channel))
+
+
+F = 2 #rapporto fra i tempi di acquisizione
+
+
+# Segnale Netto = Segnale Totale - F * Conteggi Fondo
+counts_netti = counts_segnale - F * counts_fondo
+
+
+plt.figure(figsize=(12, 7))
+plt.step(bin_centers, counts_netti, where='mid', label='Segnale Netto (Fondo sottratto)', color='red', linewidth=1.5)
+plt.axhline(0, color='black', linestyle=':', alpha=0.7) 
+plt.title(f'Spettro Gamma Netto (Normalizzato con F={F:.4f})\nSegnale: {file_segnale_name} | Rebin: {resize_factor}')
+plt.xlabel(f'Canale (Centri dei Bin)')
+plt.ylabel('Conteggi Netti')
+plt.grid(True, linestyle='--', alpha=0.7)
+plt.legend()
+plt.show()
