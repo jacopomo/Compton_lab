@@ -13,7 +13,7 @@ DSP = L/2 + 1.5 # Distanza sorgente - plastico [cm]
 DBC = 47 # Distanza bersaglio - cristallo [cm]
 RC = 2.9 # Raggio del cristallo [cm]
 SAAC = np.arctan(RC/DBC) # Semi-apertura angolare del cristallo [rad]
-PHI = 20  # Angolo al quale si trova il cristallo [gradi]
+PHI = 30  # Angolo al quale si trova il cristallo [gradi]
 FLUSSO = 2258 # Fotoni al secondo
 
 
@@ -26,7 +26,7 @@ E1, E2 = 1173.240, 1332.508 # Energie dei fotoni
 ### Config
 THETA_MIN, THETA_MAX = -np.pi, np.pi # Theta min e max
 THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 10000) # Theta mesh
-N_MC = int(1e4) # Num samples
+N_MC = int(1e6) # Num samples
 STAT_DES = 10000 # Statistica desiderata per l'esperimento
 np.random.seed(42) # Seed
 
@@ -100,13 +100,17 @@ def distribuzione_sorgente(n, type=0):
 
     Parametri: 
     n: Numero di fotoni da generare
-    type: Tipo di sorgente. 0 = uniforme, 1 = BOH
+    type: Tipo di sorgente. 0 = uniforme, 1 = gaussiana, 2 = lineare
 
     Returns:
     array di angoli in radianti generati dalla distribuzione
     """""
     if type==0:
         theta_in = np.radians(np.random.uniform(-4.75, 4.75, n)) # radianti
+    elif type==1:
+        theta_in = np.radians(np.random.normal(0,4.75/3, n)) # radians
+    elif type==2:
+        theta_in = np.full(n, 0)
     else:
         print("devo ancora implementare altre cose")
     return theta_in
@@ -122,42 +126,91 @@ def scatter(E, n):
     theta_scattered: L'angolo di scattering Compton (radianti)
     theta_total: L'angolo calcolato dalla sorgente ai fini di contare se arriva sul cristallo (radianti)
     """""
-    theta_in = distribuzione_sorgente(n, type=0) # radianti (uniforme)
+    theta_in = distribuzione_sorgente(n, type=0) # radianti (0: uniforme, 1: gauss, 2: ideale)
     theta_scattered = campiona_kn(THETA_MESH, E, n) # radianti
     theta_total = theta_in + theta_scattered
     return theta_scattered, theta_total
 
+def accept(E):
+    """"" Funzione che calcola se un raggio viene visto dal cristallo o no
+
+    Parametri:
+    theta_scattered: numpy array di angoli di scattering
+    theta_total: numpy array di angoli misurati dalla sorgente
+
+    Returns:
+    numpy array di angoli di scattering considerando solo quelli visti dal cristallo
+    """""
+    theta_scattered, theta_total = scatter(E, N_MC)
+    thetas_accepted=[]
+    counter = 0
+    for i in theta_total:
+        if (i>np.radians(PHI) - SAAC) and (i<np.radians(PHI) + SAAC):
+            thetas_accepted.append(theta_scattered[counter])
+        counter += 1
+    thetas_accepted = np.degrees(np.array(thetas_accepted))
+    return thetas_accepted
+
+def compton(E, theta):
+    """"" Calcola l'energia di un fotone entrante con energia E ed angolo theta
+
+    Parametri:
+    E: Energia in ingresso del fotone
+    theta: angolo in ingresso (in radianti) del fotone
+
+    Returns:
+    Energia del fotone dopo lo scattering
+    """""
+    return E/(1+(E*(1-np.cos(theta))/ME)) + np.random.normal(0,5,1)
+
 ######## Monte-Carlo ########
 start = time.time()
 
-theta_scattered, theta_total = scatter(E1, N_MC)
-
-plt.hist(theta_total, bins=80)
-plt.axvline(calcola_angolo_cristallo(PHI,DBC,DSP), color="red")
-plt.axvline(calcola_angolo_cristallo(PHI,DBC,DSP)-SAAC, color="red", linestyle="--", alpha=0.7)
-plt.axvline(calcola_angolo_cristallo(PHI,DBC,DSP)+SAAC, color="red", linestyle="--", alpha=0.7)
-
-plt.show()
-
-thetas_accepted=[]
-for i in theta_total:
-    if (i>np.radians(PHI)-SAAC) and (i<np.radians(PHI) + SAAC):
-        thetas_accepted.append(i)
-thetas_accepted = np.degrees(np.array(thetas_accepted))
+thetas_accepted1 = accept(E1)
+thetas_accepted2 = accept(E2)
 
 
-fotoni_visti = len(thetas_accepted)
+# Facciamo tutto nel caso del primo picco
+fotoni_visti = len(thetas_accepted1)
 print(f'\n ========== RISULTATI ==========')
 print(f'Abbiamo visto {round(fotoni_visti,2)} fotoni su {int(N_MC)}, ({round(100 * fotoni_visti/N_MC,2)}%)')
 print(f'Per vederne {STAT_DES} servierebbero {round(STAT_DES*N_MC/(FLUSSO*60*fotoni_visti),2)} minuti')
-print(f'Angoli che vediamo: [{round(min(thetas_accepted),2)}, {round(max(thetas_accepted),2)}] gradi, con il cristallo centrato a {PHI} gradi')
-print(f'Delta theta = {round(max(thetas_accepted)-min(thetas_accepted),2)} gradi')
+print(f'Angoli che vediamo: [{round(min(thetas_accepted1),2)}, {round(max(thetas_accepted1),2)}] gradi, con il cristallo centrato a {PHI} gradi')
+print(f'Delta theta = {round(max(thetas_accepted1)-min(thetas_accepted1),2)} gradi')
 print(f' ===============================\n')
-plt.hist(thetas_accepted)
 
+
+counts=plt.hist(thetas_accepted1, bins=30)
+plt.axvline(PHI-np.degrees(SAAC), color="red", linestyle="--", label="Detector aperature")
+plt.axvline(PHI+np.degrees(SAAC), color="red", linestyle="--")
+half_max = max(counts[0]) / 2
+indices = np.where(counts[0] >= half_max)[0]
+fwhm = counts[1][indices[-1]+1] - counts[1][indices[0]]
+plt.axvline(counts[1][indices[0]], color="black", linestyle="--", label="Full width half maximum")
+plt.axvline(counts[1][indices[-1]+1], color="black", linestyle="--")
+plt.axvline(np.mean(thetas_accepted1), color="yellow", label=f"Mean angle: {round(np.mean(thetas_accepted1),2)}")
+plt.legend()
 
 
 # Timing
 end = time.time()
 print(f'Tempo impiegato: {round(end - start,2)}s')
 plt.show()
+
+compton1=compton(E1, np.radians(thetas_accepted1))
+compton2=compton(E2, np.radians(thetas_accepted2))
+
+sommato=np.concatenate((compton(E1, np.radians(thetas_accepted1)),compton(E2, np.radians(thetas_accepted2))))
+b_min = min(compton1)
+b_max = max(compton2)
+binss=np.linspace(b_min, b_max, 50)
+
+#plt.hist(compton1, bins=binss, color="red", histtype="step", label=f"Picco a {round(E1,2)}keV")
+#plt.hist(compton2, bins=binss, color="blue", histtype="step", label=f"Picco a {round(E2,2)}keV")
+plt.hist(sommato, bins=binss, color="black", histtype="step", label=f"Somma")
+plt.axvline(compton(E1, np.radians(np.mean(thetas_accepted1))), color="red", linestyle="--", label=f"{compton(E1, np.radians(np.mean(thetas_accepted1)))}keV")
+plt.axvline(compton(E2, np.radians(np.mean(thetas_accepted2))), color="blue", linestyle="--", label=f"{compton(E2, np.radians(np.mean(thetas_accepted2)))}keV")
+plt.legend()
+plt.show()
+
+
