@@ -13,7 +13,7 @@ DSP = L/2 + 1.5 # Distanza sorgente - plastico [cm]
 DBC = 47 # Distanza bersaglio - cristallo [cm]
 RC = 2.9 # Raggio del cristallo [cm]
 SAAC = np.arctan(RC/DBC) # Semi-apertura angolare del cristallo [rad]
-PHI = 30  # Angolo al quale si trova il cristallo [gradi]
+PHI = 15  # Angolo al quale si trova il cristallo [gradi]
 FLUSSO = 2258 # Fotoni al secondo
 
 
@@ -29,6 +29,60 @@ THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 10000) # Theta mesh
 N_MC = int(1e6) # Num samples
 STAT_DES = 10000 # Statistica desiderata per l'esperimento
 np.random.seed(42) # Seed
+
+######## Classi ########
+
+class Superficie:
+    def __init__(self, raggio, posizione=(0,0,0), angolo=0): # Passa gradi
+        self.posizione = posizione
+        self.angolo = np.radians(angolo)
+        self.raggio = raggio
+
+    def genera_uniforme(self, n):
+        thetas = np.random.uniform(0,2*np.pi, n)
+        rs = self.raggio * np.sqrt(np.random.uniform(0,1,n))
+        distribuzione_sorgente(n, type=0)
+        pass
+
+class Fotone:
+    def __init__(self, energia, posizione=[0,0,0], direzione=[0,0]): #Passa gradi phi psi
+        self.energia = energia
+        self.posizione = np.array(posizione)
+        self.direzione = np.radians(np.array(direzione))
+    
+    def scatter_uniforme(self):
+        pass
+
+    def scatter_compton(self):
+        pass
+    
+    def calcola_int(self, superficie):
+        posizione = self.posizione
+        direzione = self.direzione
+        centro = np.array(superficie.posizione)
+        if np.linalg.norm(centro)==0:
+            normal = np.array([1,0,0])
+        else:
+            normal = centro / np.linalg.norm(centro)
+
+        if direzione[0]==0:
+            direzione[0]==0.01
+        if direzione[1] == 0:
+            direzione[1] == 0.01
+
+        y_int =  ((normal[1]*centro[1]) + (normal[2]*(centro[2] -posizione[2] - (posizione[1]/np.tan(direzione[0])))))/((normal[1]) + (normal[2]/np.tan(direzione[0])))
+        z_int = ((y_int-posizione[1])/np.tan(direzione[0])) + posizione[2]
+        x_int = ((z_int-posizione[2]) * np.tan(direzione[1])) + posizione[0]
+
+        intersezione = np.array([x_int, y_int, z_int])
+
+        if np.sum(((intersezione-centro)**2)) < superficie.raggio:
+            print("intersecato")
+            return intersezione
+        else:
+            print("non intersecato")
+            return None
+
 
 ######## Funzioni ########
 
@@ -212,7 +266,14 @@ def plot_compton():
 ######## Monte-Carlo ########
 start = time.time()
 
-plot_compton()
+#plot_compton()
+sorgente    = Superficie(1,(0,0,-DSP-L),0)
+collimatore = Superficie(1,(0,0,-DSP), 0)
+plastico    = Superficie(10, (0,0,0), 0)
+cristallo   = Superficie(RC,(0,DBC*np.sin(np.radians(PHI)), DBC*np.cos(np.radians(PHI))), PHI)
+
+f=Fotone(E1, [0,0,0], [0,0])
+f.calcola_int(cristallo)
 
 end = time.time()
 print(f'Tempo impiegato: {round(end - start,2)}s')
