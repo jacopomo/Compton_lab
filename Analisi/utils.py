@@ -36,7 +36,7 @@ def cast_value(value, dtype):
     value [str]: valore da convertire il type.
     dtype [str]: type in cui va convertito value.
     """
-    if value is None:
+    if value == "na":
         return None
     
     value = value.strip()
@@ -78,7 +78,7 @@ def gen_dict(file):
         for col,val in row.items():
             if col == key_col:
                 continue
-            if val is not None:
+            if val != "na":
                 nested[col] = cast_value(val, dtype=df.loc[0,col])
         value[main_key] = nested
 
