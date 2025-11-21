@@ -32,20 +32,6 @@ np.random.seed(42) # Seed
 
 ######## Funzioni ########
 
-def lambdaratio(theta, E):
-    """""
-    2Calcola il rapporto lambda su lambda primo
-    usato nel calcolo dell'angolo di scattering
-
-    Parametri:
-    theta: angolo di scattering
-    E: energia del fotone incidente (keV)
-   
-    """""
-
-    epsilon = E/ME
-    return 1/(1+(epsilon*(1-np.cos(theta))))
-
 def kn(theta, E):
     """"" Klein Nishima formula
 
@@ -56,8 +42,8 @@ def kn(theta, E):
     Retruns:
     Sezione d'urto differenziale
     """""
-
-    lr=lambdaratio(theta,E)
+    epsilon = E/ME
+    lr=1/(1+(epsilon*(1-np.cos(theta))))
 
     return 0.5*(RE**2)*(lr)**2*(lr + (lr)**-1 - (np.sin(theta))**2)
 
@@ -151,66 +137,86 @@ def accept(E):
     thetas_accepted = np.degrees(np.array(thetas_accepted))
     return thetas_accepted
 
-def compton(E, theta):
+def seen_thetas(picco=1):
+    """"" Genera il grafico per gli angoli di scattering visti in base al picco
+
+    Parametri:
+    picco: 1 o 2 in base al picco che si vuole vedere
+
+    Returns: None
+    """""
+    if picco == 1:
+        thetas_accepted=accept(E1)
+    if picco == 2:
+        thetas_accepted=accept(E2)
+    else:
+        print("Picco deve essere 1 o 2")
+        end
+
+    fotoni_visti = len(thetas_accepted)
+    print(f'\n ========== RISULTATI ==========')
+    print(f'Abbiamo visto {round(fotoni_visti,2)} fotoni su {int(N_MC)}, ({round(100 * fotoni_visti/N_MC,2)}%)')
+    print(f'Per vederne {STAT_DES} servierebbero {round(STAT_DES*N_MC/(FLUSSO*60*fotoni_visti),2)} minuti')
+    print(f'Angoli che vediamo: [{round(min(thetas_accepted),2)}, {round(max(thetas_accepted),2)}] gradi, con il cristallo centrato a {PHI} gradi')
+    print(f'Delta theta = {round(max(thetas_accepted)-min(thetas_accepted),2)} gradi')
+    print(f' ===============================\n')
+
+
+    counts=plt.hist(thetas_accepted, bins=30)
+    plt.axvline(PHI-np.degrees(SAAC), color="red", linestyle="--", label="Detector aperature")
+    plt.axvline(PHI+np.degrees(SAAC), color="red", linestyle="--")
+    half_max = max(counts[0]) / 2
+    indices = np.where(counts[0] >= half_max)[0]
+    fwhm = counts[1][indices[-1]+1] - counts[1][indices[0]]
+    plt.axvline(counts[1][indices[0]], color="black", linestyle="--", label="Full width half maximum")
+    plt.axvline(counts[1][indices[-1]+1], color="black", linestyle="--")
+    plt.axvline(np.mean(thetas_accepted), color="yellow", label=f"Mean angle: {round(np.mean(thetas_accepted),2)}")
+    plt.legend()
+    plt.show()
+
+def compton(E, theta, errore=0):
     """"" Calcola l'energia di un fotone entrante con energia E ed angolo theta
 
     Parametri:
     E: Energia in ingresso del fotone
     theta: angolo in ingresso (in radianti) del fotone
+    errore: errore gaussiano strumentale (keV)
 
     Returns:
     Energia del fotone dopo lo scattering
     """""
-    return E/(1+(E*(1-np.cos(theta))/ME)) + np.random.normal(0,5,1)
+    return E/(1+(E*(1-np.cos(theta))/ME)) + np.random.normal(0,errore,1)
+
+def plot_compton():
+    thetas_accepted1 = accept(E1)
+    thetas_accepted2 = accept(E2)
+
+    
+    compton1=compton(E1, np.radians(thetas_accepted1),5)
+    compton2=compton(E2, np.radians(thetas_accepted2),5)
+
+    sommato=np.concatenate((compton1, compton2))
+    b_min = min(compton1)
+    b_max = max(compton2)
+    binss=np.linspace(b_min, b_max, 50)
+
+    #plt.hist(compton1, bins=binss, color="red", histtype="step", label=f"Picco a {round(E1,2)}keV")
+    #plt.hist(compton2, bins=binss, color="blue", histtype="step", label=f"Picco a {round(E2,2)}keV")
+    plt.hist(sommato, bins=binss, color="black", histtype="step", label=f"Somma")
+    plt.axvline(compton(E1, np.radians(np.mean(thetas_accepted1))), color="red", linestyle="--", label=f"{compton(E1, np.radians(np.mean(thetas_accepted1)))}keV")
+    plt.axvline(compton(E2, np.radians(np.mean(thetas_accepted2))), color="blue", linestyle="--", label=f"{compton(E2, np.radians(np.mean(thetas_accepted2)))}keV")
+    plt.legend()
+    plt.show()
+    pass
 
 ######## Monte-Carlo ########
 start = time.time()
 
-thetas_accepted1 = accept(E1)
-thetas_accepted2 = accept(E2)
+plot_compton()
 
-
-# Facciamo tutto nel caso del primo picco
-fotoni_visti = len(thetas_accepted1)
-print(f'\n ========== RISULTATI ==========')
-print(f'Abbiamo visto {round(fotoni_visti,2)} fotoni su {int(N_MC)}, ({round(100 * fotoni_visti/N_MC,2)}%)')
-print(f'Per vederne {STAT_DES} servierebbero {round(STAT_DES*N_MC/(FLUSSO*60*fotoni_visti),2)} minuti')
-print(f'Angoli che vediamo: [{round(min(thetas_accepted1),2)}, {round(max(thetas_accepted1),2)}] gradi, con il cristallo centrato a {PHI} gradi')
-print(f'Delta theta = {round(max(thetas_accepted1)-min(thetas_accepted1),2)} gradi')
-print(f' ===============================\n')
-
-
-counts=plt.hist(thetas_accepted1, bins=30)
-plt.axvline(PHI-np.degrees(SAAC), color="red", linestyle="--", label="Detector aperature")
-plt.axvline(PHI+np.degrees(SAAC), color="red", linestyle="--")
-half_max = max(counts[0]) / 2
-indices = np.where(counts[0] >= half_max)[0]
-fwhm = counts[1][indices[-1]+1] - counts[1][indices[0]]
-plt.axvline(counts[1][indices[0]], color="black", linestyle="--", label="Full width half maximum")
-plt.axvline(counts[1][indices[-1]+1], color="black", linestyle="--")
-plt.axvline(np.mean(thetas_accepted1), color="yellow", label=f"Mean angle: {round(np.mean(thetas_accepted1),2)}")
-plt.legend()
-
-
-# Timing
 end = time.time()
 print(f'Tempo impiegato: {round(end - start,2)}s')
 plt.show()
 
-compton1=compton(E1, np.radians(thetas_accepted1))
-compton2=compton(E2, np.radians(thetas_accepted2))
-
-sommato=np.concatenate((compton(E1, np.radians(thetas_accepted1)),compton(E2, np.radians(thetas_accepted2))))
-b_min = min(compton1)
-b_max = max(compton2)
-binss=np.linspace(b_min, b_max, 50)
-
-#plt.hist(compton1, bins=binss, color="red", histtype="step", label=f"Picco a {round(E1,2)}keV")
-#plt.hist(compton2, bins=binss, color="blue", histtype="step", label=f"Picco a {round(E2,2)}keV")
-plt.hist(sommato, bins=binss, color="black", histtype="step", label=f"Somma")
-plt.axvline(compton(E1, np.radians(np.mean(thetas_accepted1))), color="red", linestyle="--", label=f"{compton(E1, np.radians(np.mean(thetas_accepted1)))}keV")
-plt.axvline(compton(E2, np.radians(np.mean(thetas_accepted2))), color="blue", linestyle="--", label=f"{compton(E2, np.radians(np.mean(thetas_accepted2)))}keV")
-plt.legend()
-plt.show()
 
 
