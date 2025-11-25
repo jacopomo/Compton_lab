@@ -15,9 +15,14 @@ dat = np.loadtxt(file, dtype=int, unpack=True)
 bin_indices = np.arange(dat.size, dtype=int)
 unbinned = np.repeat(bin_indices, dat)
 
-plt.title(f'Spettro Gamma in Scala Logaritmica')
+if scale_log:
+    loglabel = "Logaritmica"
+else:
+    loglabel = "Lineare"
+
+plt.title(f'Spettro Gamma in Scala {loglabel}')
 plt.xlabel(f'Canale')
-plt.ylabel('Conteggi (Scala Logaritmica)')
+plt.ylabel('Conteggi (Scala {loglabel})')
 if scale_log:
     plt.yscale('log')
 count = plt.hist(unbinned, bins=num_bins, histtype='step')
