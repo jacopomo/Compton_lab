@@ -14,7 +14,7 @@ def modello_fit(x, A, mu, sigma, B0, k, B1):
 
 # --- 2. CARICAMENTO DATI ---
 file_name = input("Nome file Cesio (137Cs) -> ")
-file = r"Dati/" + file_name
+file = r"Dati/Calibration/" + file_name
 resize_factor = int(input("Resize factor -> "))
 num_bins = int(8192 / resize_factor)
 
