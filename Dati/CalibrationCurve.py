@@ -15,13 +15,14 @@ def modello_gauss_exp(x, A, mu, sigma, B0, k, B1):
     return gauss + fondo
 
 # --- 2. FUNZIONE DI FIT ---
-def esegui_fit(bin_centers, counts, config_sorgente):
+def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzare=False):
     nome = config_sorgente['nome']
     energia = config_sorgente['energia']
     finestra = config_sorgente['finestra'] # [low, high]
     manual_guess = config_sorgente.get('guess') # Opzionale
 
-    print(f"\nAnalisi: {nome} ({energia} keV)...")
+    if printing:
+        print(f"\nAnalisi: {nome} ({energia} keV)...")
 
     # Selezione Finestra
     low, high = finestra
@@ -37,7 +38,8 @@ def esegui_fit(bin_centers, counts, config_sorgente):
     # Stima Parametri Iniziali (Guess)
     if manual_guess is not None and len(manual_guess) == 6:
         p0 = manual_guess
-        print("  --> Uso parametri manuali dal JSON.")
+        if printing:
+            print("  --> Uso parametri manuali dal JSON.")
     else:
         # Logica automatica intelligente
         mu_g = x_win[np.argmax(y_win)]       # Picco = Massimo
@@ -54,7 +56,8 @@ def esegui_fit(bin_centers, counts, config_sorgente):
              k_g = 0.005 # Pendenza più forte per basse energie
         
         p0 = [A_g, mu_g, sigma_g, B0_g, k_g, B1_g]
-        print("  --> Uso parametri automatici.")
+        if printing:
+            print("  --> Uso parametri automatici.")
 
     # Esecuzione Fit
     try:
@@ -66,22 +69,24 @@ def esegui_fit(bin_centers, counts, config_sorgente):
         popt, pcov = curve_fit(modello_gauss_exp, x_win, y_win, p0=p0, bounds=(bounds_min, bounds_max), maxfev=20000)
         err_mu = np.sqrt(np.diag(pcov))[1]
         
-        # Visualizzazione risultato fit
-        plt.figure(figsize=(6, 4))
-        plt.step(bin_centers, counts, where='mid', color='lightgray', label='Spettro intero')
-        plt.plot(x_win, y_win, 'b.', label='Dati Finestra')
-        
-        x_plot = np.linspace(min(x_win), max(x_win), 500)
-        plt.plot(x_plot, modello_gauss_exp(x_plot, *popt), 'r-', linewidth=2, label=f'Fit (mu={popt[1]:.2f})')
-        
-        plt.title(f"Fit: {nome}")
-        plt.xlabel("Canale")
-        plt.ylabel("Conteggi")
-        plt.xlim(low*0.8, high*1.2) # Zoom
-        plt.legend()
-        plt.show()
+        if visualizzare:
+            # Visualizzazione risultato fit
+            plt.figure(figsize=(6, 4))
+            plt.step(bin_centers, counts, where='mid', color='lightgray', label='Spettro intero')
+            plt.plot(x_win, y_win, 'b.', label='Dati Finestra')
+            
+            x_plot = np.linspace(min(x_win), max(x_win), 500)
+            plt.plot(x_plot, modello_gauss_exp(x_plot, *popt), 'r-', linewidth=2, label=f'Fit (mu={popt[1]:.2f})')
+            
+            plt.title(f"Fit: {nome}")
+            plt.xlabel("Canale")
+            plt.ylabel("Conteggi")
+            plt.xlim(low*0.8, high*1.2) # Zoom
+            plt.legend()
+            plt.show()
 
-        print(f"  --> OK! Picco trovato a canale {popt[1]:.2f} +/- {err_mu:.2f}")
+        if printing:
+            print(f"  --> OK! Picco trovato a canale {popt[1]:.2f} +/- {err_mu:.2f}")
         return popt[1], err_mu
 
     except Exception as e:
@@ -134,7 +139,7 @@ for sorgente in lista_sorgenti:
     centers, counts = cache_dati[nome_file]
     
     # Fit
-    mu, err = esegui_fit(centers, counts, sorgente)
+    mu, err = esegui_fit(centers, counts, sorgente, printing=True, visualizzare=True)
     
     if mu is not None:
         punti_ch.append(mu)
