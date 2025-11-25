@@ -8,6 +8,7 @@ import time
 ### Geometria:
 L = 11 #Lunghezza collimatore [cm]
 SAACOLL = np.degrees(np.arctan(2/L)) # Semi-apertura angolare del collimatore [gradi]
+RP = 2.5 # Raggio plastico [cm]
 DSP = 1.5 # Distanza sorgente - plastico [cm]
 DBC = 47 # Distanza bersaglio - cristallo [cm]
 RC = 2.9 # Raggio del cristallo [cm]
@@ -29,7 +30,7 @@ THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 10000) # Theta mesh
 STAT_DES = 10000 # Statistica desiderata per l'esperimento
 np.random.seed(42) # Seed
 
-N_MC = int(1e7) # Num samples (MASSIMO 5e7 SE NON VUOI FAR DIVENTARE IL TUO COMPUTER UN TERMOSIFONE)
+N_MC = int(5e7) # Num samples (MASSIMO 5e7 SE NON VUOI FAR DIVENTARE IL TUO COMPUTER UN TERMOSIFONE)
 
 ######## Classi ########
 
@@ -171,7 +172,7 @@ def compton(E, theta, errore=0):
 def mc(E, phi_cristallo=PHI):
     sorgente    = Superficie(1,(0,0,-DSP-L),0)
     collimatore = Superficie(1,(0,0,-DSP), 0)
-    plastico    = Superficie(4, (0,0,0), 0)
+    plastico    = Superficie(RP, (0,0,0), 0)
     cristallo   = Superficie(RC,(0,DBC*np.sin(np.radians(phi_cristallo)), DBC*np.cos(np.radians(phi_cristallo))), phi_cristallo)
 
     ## Sorgente - collimatore
@@ -218,12 +219,13 @@ def plot_compton(phi_cristallo=PHI, all_peaks=False):
     plt.axvline(compton(E2, np.mean(scatter_angles2)), color="blue", linestyle="--", label=f"Scattering medio: {round(np.mean(np.degrees(scatter_angles2)),1)} gradi, E={round(compton(E2, np.mean(scatter_angles2))[0],1)}keV")
     plt.title(f"Segnale simulato per il cristallo posto a {phi_cristallo} gradi")
     plt.legend()
+    np.savetxt(f'simulato_{phi_cristallo}gradi.csv', (sommato), delimiter=',')
     return sommato
 
 ######## Monte-Carlo ########
 start = time.time()
 
-plot_compton(phi_cristallo=20, all_peaks=True)
+sommato = plot_compton(phi_cristallo=35, all_peaks=True)
 
 end = time.time()
 print(f'Tempo impiegato: {round(end - start,2)}s')
