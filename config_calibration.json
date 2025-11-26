@@ -13,14 +13,14 @@
             "nome": "Sodio-22 (Annichilazione)",
             "file": "hNa22.dat",
             "energia": 511.0,
-            "finestra": [1820, 2350],
+            "finestra": [1790, 2550],
             "guess": [252, 2100, 78, 225, 0.001, 170]
         },
         {
             "nome": "Cesio-137",
             "file": "hCs137.dat",
             "energia": 661.7,
-            "finestra": [750, 5590],
+            "finestra": [2050, 3750],
             "guess": [437, 2725, 85, 291, 0.0008, 15]
         },
         {
@@ -34,8 +34,8 @@
             "nome": "Cobalto-60 (Picco 2)",
             "file": "hCo60.dat",
             "energia": 1332.5,
-            "finestra": [5050, 5690],
-            "guess": [452, 5409, 131, 663, 0.001, 100]
+            "finestra": [4550, 6500],
+            "guess": [452, 5409, 131, 452, 4769, 131, 1291, 0.001, 7]
         }
     ]
 }

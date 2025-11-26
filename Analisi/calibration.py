@@ -54,25 +54,21 @@ def fit_calibration(dict, graph_name="last_output.png"):
     plt.figure(figsize=(6,4))
     plt.stairs(count,bins, color='gray')
     
-    '''
     if dict["fit_enable"]:
 
-        pinit = [2709.0, 89.89, 480.0, 1.0e-3, 340.0]
-        bounds = ([0.0, 0.0, 0.0, 0.0, 0.0],
-                  [2713.0, 93.0, 500.0, 5.0e-3, 400.0])
+        pinit = [712, 90, 450, 1.3e-3, 55.0]
 
         popt, pcov = curve_fit(gauss_expo,
-                               center_bins,
+                               center_bins-np.full(len(center_bins), range[0]),
                                count,
-                               p0=pinit,
-                               bounds=bounds)
+                               p0=pinit)
 
         print("Fit completato.\n\npopt = ")
         print(popt)
-        xx = np.linspace(range[0],range[1], 1000)
-        plt.plot(xx, gauss_expo(xx, *pinit), color='red')
-        plt.plot(xx, gauss_expo(xx, *popt), color='red')
-    '''
+        xx = np.linspace(0,range[1]-range[0], 1000)
+        plt.plot(xx+np.full(1000, range[0]), gauss_expo(xx, *pinit), color='blue')
+        #plt.plot(xx+np.full(1000, range[0]), gauss_expo(xx, *popt), color='red')
+
     plt.savefig(os.path.join(output_dir, "Graph/" + graph_name), format="png", dpi=600, bbox_inches='tight')
     plt.close()
 '''

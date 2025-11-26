@@ -9,10 +9,21 @@ import os
 def modello_gauss_exp(x, A, mu, sigma, B0, k, B1):
     """Gaussiana (Picco) + Fondo Esponenziale"""
     # Protezione per evitare overflow dell'esponenziale
-    k = np.abs(k)
+
     gauss = A * np.exp(-0.5 * ((x - mu) / sigma)**2)
     fondo = B0 * np.exp(-k * x) + B1 
     return gauss + fondo
+
+def modello_doppia_gauss_exp(x, A1, mu1, sigma1, A2, mu2, sigma2, B0, k, B1):
+    """Gaussiana (Picco) + Fondo Esponenziale"""
+    # Protezione per evitare overflow dell'esponenziale
+
+    gauss1 = A1 * np.exp(-0.5 * ((x - mu1) / sigma1)**2)
+    gauss2 = A2 * np.exp(-0.5 * ((x - mu2) / sigma2)**2)
+    fondo = B0 * np.exp(-k * x) + B1 
+    return gauss1 + gauss2 + fondo
+
+special_fit_functions = [modello_doppia_gauss_exp]
 
 # --- 2. FUNZIONE DI FIT ---
 def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzare=False):
@@ -20,6 +31,7 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
     energia = config_sorgente['energia']
     finestra = config_sorgente['finestra'] # [low, high]
     manual_guess = config_sorgente.get('guess') # Opzionale
+    special_fit = config_sorgente.get('special fit') # Opzionale
 
     if printing:
         print(f"\nAnalisi: {nome} ({energia} keV)...")
@@ -59,14 +71,20 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
         if printing:
             print("  --> Uso parametri automatici.")
 
+    # Scelgo La Funzione Di Fit
+    if special_fit is not None and type(special_fit)==int and special_fit <= len(special_fit_functions):
+        fit_function = special_fit(special_fit)
+    else:
+        fit_function = modello_gauss_exp
+
     # Esecuzione Fit
     try:
         # Bounds per evitare risultati fisicamente impossibili (es. ampiezza negativa)
         # A, mu, sigma, B0, k, B1
-        bounds_min = [0, low, 0, 0, -np.inf, -np.inf]
-        bounds_max = [np.inf, high, np.inf, np.inf, 1, np.inf]
+        bounds_min = [0, low, 0, 0, 0, 0]
+        bounds_max = [np.inf, high, np.inf, np.inf, np.inf, np.inf]
         
-        popt, pcov = curve_fit(modello_gauss_exp, x_win, y_win, p0=p0, bounds=(bounds_min, bounds_max), maxfev=20000)
+        popt, pcov = curve_fit(fit_function, x_win, y_win, p0=p0, bounds=(bounds_min, bounds_max), maxfev=20000)
         err_mu = np.sqrt(np.diag(pcov))[1]
         
         if visualizzare:
@@ -76,6 +94,8 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
             plt.plot(x_win, y_win, 'b.', label='Dati Finestra')
             
             x_plot = np.linspace(min(x_win), max(x_win), 500)
+            bkg = popt[3] * np.exp(- popt[4] * x_plot) + popt[5]
+            plt.plot(x_plot, bkg, 'g--', linewidth=1, label=f'Background')
             plt.plot(x_plot, modello_gauss_exp(x_plot, *popt), 'r-', linewidth=2, label=f'Fit (mu={popt[1]:.2f})')
             
             plt.title(f"Fit: {nome}")
@@ -83,10 +103,15 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
             plt.ylabel("Conteggi")
             plt.xlim(low*0.8, high*1.2) # Zoom
             plt.legend()
+
+            if printing:
+                print(f"  --> OK! Picco trovato a canale {popt[1]:.2f} +/- {err_mu:.2f}")
+                print(f"  --> Contronto tra parametri di fit e parametri iniziali:")
+                print(f"      popt = {popt[0]:.2f}, {popt[1]:.2f}, {popt[2]:.2f}, {popt[3]:.2f} {popt[4]:.6f} {popt[5]:.2f}")
+                print(f"      p0   = {p0[0]:.2f}, {p0[1]:.2f}, {p0[2]:.2f}, {p0[3]:.2f} {p0[4]:.6f} {p0[5]:.2f}")
+
             plt.show()
 
-        if printing:
-            print(f"  --> OK! Picco trovato a canale {popt[1]:.2f} +/- {err_mu:.2f}")
         return popt[1], err_mu
 
     except Exception as e:
