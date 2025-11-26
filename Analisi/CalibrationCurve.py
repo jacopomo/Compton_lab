@@ -4,34 +4,25 @@ from scipy.optimize import curve_fit
 from scipy.stats import linregress
 import json
 import os
+import inspect
+
+import utils as u
 
 # --- 1. MODELLO MATEMATICO ---
-def modello_gauss_exp(x, A, mu, sigma, B0, k, B1):
-    """Gaussiana (Picco) + Fondo Esponenziale"""
-    # Protezione per evitare overflow dell'esponenziale
-
-    gauss = A * np.exp(-0.5 * ((x - mu) / sigma)**2)
-    fondo = B0 * np.exp(-k * x) + B1 
-    return gauss + fondo
-
-def modello_doppia_gauss_exp(x, A1, mu1, sigma1, A2, mu2, sigma2, B0, k, B1):
-    """Gaussiana (Picco) + Fondo Esponenziale"""
-    # Protezione per evitare overflow dell'esponenziale
-
-    gauss1 = A1 * np.exp(-0.5 * ((x - mu1) / sigma1)**2)
-    gauss2 = A2 * np.exp(-0.5 * ((x - mu2) / sigma2)**2)
-    fondo = B0 * np.exp(-k * x) + B1 
-    return gauss1 + gauss2 + fondo
-
-special_fit_functions = [modello_doppia_gauss_exp]
+functions_list = {"gauss_exp":u.gauss_exp,
+                 "double_gauss_exp":u.double_gauss_exp}
 
 # --- 2. FUNZIONE DI FIT ---
 def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzare=False):
-    nome = config_sorgente['nome']
-    energia = config_sorgente['energia']
-    finestra = config_sorgente['finestra'] # [low, high]
-    manual_guess = config_sorgente.get('guess') # Opzionale
-    special_fit = config_sorgente.get('special fit') # Opzionale
+    try:
+        nome = config_sorgente['nome']
+        energia = config_sorgente['energia']
+        finestra = config_sorgente['finestra'] # [low, high]
+        guess = config_sorgente['guess']
+        manual_bounds = config_sorgente.get('bounds')
+        special_fit = config_sorgente.get('special fit') # Opzionale
+    except Exception as e:
+        print(f"\n --> ERRORE: {e}\n            Controlla di aver definito nome, energia, finestra e guess nel file JSON.\n")    
 
     if printing:
         print(f"\nAnalisi: {nome} ({energia} keV)...")
@@ -44,60 +35,66 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
 
     # Controllo preliminare dati
     if len(x_win) < 6:
-        print(f"  --> ERRORE: Finestra [{low}-{high}] vuota o troppo stretta!")
+        print(f"\n  --> ERRORE: Finestra [{low}-{high}] vuota o troppo stretta!\n")
         return None, None
 
-    # Stima Parametri Iniziali (Guess)
-    if manual_guess is not None and len(manual_guess) == 6:
-        p0 = manual_guess
-        if printing:
-            print("  --> Uso parametri manuali dal JSON.")
-    else:
-        # Logica automatica intelligente
-        mu_g = x_win[np.argmax(y_win)]       # Picco = Massimo
-        bg_min = np.min(y_win)
-        bg_max = np.max(y_win)
-        A_g = bg_max - bg_min                # Altezza relativa
-        sigma_g = (high - low) / 6.0         # Larghezza generica
-        B0_g = y_win[0]                      # Valore a sinistra
-        B1_g = 0.0                           # Offset
-        k_g = 0.0005                         # Pendenza lieve
-        
-        # Correzione specifica per Americio (spesso il fondo sale a sinistra violentemente)
-        if energia < 100: 
-             k_g = 0.005 # Pendenza più forte per basse energie
-        
-        p0 = [A_g, mu_g, sigma_g, B0_g, k_g, B1_g]
-        if printing:
-            print("  --> Uso parametri automatici.")
-
     # Scelgo La Funzione Di Fit
-    if special_fit is not None and type(special_fit)==int and special_fit <= len(special_fit_functions):
-        fit_function = special_fit(special_fit)
+    if special_fit is not None:
+        try:
+            fit_function = functions_list[special_fit]
+            if printing:
+                print(f"  --> Selezionato manualmente la funzione di fit '{special_fit}'")
+        except:
+            print(f"\n  --> ERRORE:'{special_fit}' non rietra tra le funzioni di fit possibili.\n")
+            return None, None
     else:
-        fit_function = modello_gauss_exp
+        fit_function = functions_list["gauss_exp"]
+    
+    #Fisso I Parametri Iniziali
+    num_par = len(inspect.signature(fit_function).parameters) - 1
+    if len(guess) == num_par:
+        p0 = guess
+    else:
+        print(f"\n  --> ERRORE: Il numero dei parametri iniziali e' sbagliato!\n             La funzione '{fit_function}' richiede {num_par} parametri\n")
+        return None, None
+    if manual_bounds is not None:
+        try:
+            bounds_min = manual_bounds[0]
+            bounds_max = manual_bounds[1]
+        except:
+            print("\n  --> ERRORE: la varibile bounds nel JSON deve essere una ntuple di due elementi.")
+            return None, None
+        # Controllo che i limiti e i parametri iniziali abbiamo la stessa dimensione
+        if len(bounds_min)!=num_par or len(bounds_max)!=num_par:
+            print(f"\n  --> ERRORE: Il numero dei bounds e' sbagliato!\n             La funzione '{fit_function}' richiede {num_par} parametri\n")
+            return None, None
+    else:
+        if fit_function == u.gauss_exp:
+            #             A,      mu,   sigma,  B0,     k,      B1
+            bounds_min = [0,      low,  0,      0,      0,      0]
+            bounds_max = [np.inf, high, np.inf, np.inf, np.inf, np.inf]
+        if fit_function == u.double_gauss_exp:
+            #             A1,     mu1,  sigma1, A1,     mu1,  sigma1, B0,     k,      B1
+            bounds_min = [0,      low,  0,      0,      low,  0,      0,      0,      0]
+            bounds_max = [np.inf, high, np.inf, np.inf, high, np.inf, np.inf, np.inf, np.inf]
+
+    
 
     # Esecuzione Fit
     try:
-        # Bounds per evitare risultati fisicamente impossibili (es. ampiezza negativa)
-        # A, mu, sigma, B0, k, B1
-        bounds_min = [0, low, 0, 0, 0, 0]
-        bounds_max = [np.inf, high, np.inf, np.inf, np.inf, np.inf]
         
         popt, pcov = curve_fit(fit_function, x_win, y_win, p0=p0, bounds=(bounds_min, bounds_max), maxfev=20000)
         err_mu = np.sqrt(np.diag(pcov))[1]
-        
+
         if visualizzare:
             # Visualizzazione risultato fit
             plt.figure(figsize=(6, 4))
             plt.step(bin_centers, counts, where='mid', color='lightgray', label='Spettro intero')
             plt.plot(x_win, y_win, 'b.', label='Dati Finestra')
-            
+
             x_plot = np.linspace(min(x_win), max(x_win), 500)
-            bkg = popt[3] * np.exp(- popt[4] * x_plot) + popt[5]
-            plt.plot(x_plot, bkg, 'g--', linewidth=1, label=f'Background')
-            plt.plot(x_plot, modello_gauss_exp(x_plot, *popt), 'r-', linewidth=2, label=f'Fit (mu={popt[1]:.2f})')
-            
+            plt.plot(x_plot, fit_function(x_plot, *popt), 'r-', linewidth=2, label=f'Fit (mu={popt[1]:.2f})')
+
             plt.title(f"Fit: {nome}")
             plt.xlabel("Canale")
             plt.ylabel("Conteggi")
@@ -116,14 +113,13 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
 
     except Exception as e:
         print(f"  --> FIT FALLITO: {e}")
-        print("      Suggerimento: controlla la finestra nel JSON.")
         return None, None
 
 # --- 3. LETTURA DATI E CONFIGURAZIONE ---
-file_config = "config_calibration.json"
+file_config = "Analisi/Config/config_calibration.json"
 
 if not os.path.exists(file_config):
-    print(f"ERRORE: Devi creare il file '{file_config}' nella cartella!")
+    print(f"ERRORE: Devi creare il file '{file_config}'!")
     exit()
 
 with open(file_config, 'r') as f:
@@ -146,7 +142,7 @@ for sorgente in lista_sorgenti:
     
     # Caricamento (solo se non già in memoria)
     if nome_file not in cache_dati:
-        path = r"Dati/Calibration/" + nome_file
+        path = r"Dati/Calibration/20_11_25/" + nome_file
         if not os.path.exists(path):
             print(f"ATTENZIONE: File '{path}' non trovato. Salto {sorgente['nome']}.")
             continue
@@ -164,7 +160,7 @@ for sorgente in lista_sorgenti:
     centers, counts = cache_dati[nome_file]
     
     # Fit
-    mu, err = esegui_fit(centers, counts, sorgente, printing=True, visualizzare=True)
+    mu, err = esegui_fit(centers, counts, sorgente, printing=False, visualizzare=True)
     
     if mu is not None:
         punti_ch.append(mu)

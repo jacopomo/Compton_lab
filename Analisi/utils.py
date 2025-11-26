@@ -16,86 +16,17 @@ def searchfiles(relative_path, ext):
 
     return files
 
-def unbin(file):
-    """
-    Dato un file che contiene i conteggi per ogni bin (in una colonna) di un istogramma, 
-    restituisce un array dei valori che sono stati binnati.
-
-    file [str]: file dell'istogramma.
-    """
-    dat = np.loadtxt(file, dtype=int, unpack=True)
-    bin_indices = np.arange(dat.size, dtype=int)
-    unbinned = np.repeat(bin_indices, dat)
-
-    return unbinned
-
-def cast_value(value, dtype):
-    """
-    Converte un valore basandodi sul tipo secificato con una stringa.
-
-    value [str]: valore da convertire il type.
-    dtype [str]: type in cui va convertito value.
-    """
-    if value == "na":
-        return None
-    
-    value = value.strip()
-
-    if dtype == 'str':
-        return value
-    elif dtype == "int":
-        return int(value)
-    elif dtype == "float":
-        return float(value)
-    elif dtype == "list":
-        return ast.literal_eval(value)
-    else:
-        return value
-
-def gen_dict(file):
-    """
-    Genera una lista di dict da un file .txt usando la prima colonna come keywords per ogni disct che rappresenta ogni riga: 
-    nel dict della riga ogni valore e' associato al nome della colonna, usato come keyword. La seconda riga del file .txt contiene 
-    i type degli elementi nella colonna.
-
-    file [str]: il path del file.txt.
-    """
-    df = pd.read_csv(file,
-                    sep=r"\s+",
-                    engine="python",
-                    dtype=str)
-    df = df.replace({np.nan: None})
-
-    value = {}
-    key_col = df.columns[0]
-
-    for i,row in df.iterrows():
-        if i == 0:
-            continue
-        main_key = row[key_col]
-        nested = {}
-
-        for col,val in row.items():
-            if col == key_col:
-                continue
-            if val != "na":
-                nested[col] = cast_value(val, dtype=df.loc[0,col])
-        value[main_key] = nested
-
-    return value
 
 
-
-
-def expo(x, lam, A):
+def expo(x, k, A):
     """
     Funzine del tipo A * exp(-lambda x)
 
     x [float]: Variabile indipendente.
-    lambda [float]: coefficiente della caduta esponenziale.
-    A [float]: fattore di normalizzazione, A/lambda corrisponde all'integrale su [0,inf].
+    k [float]: coefficiente della caduta esponenziale.
+    A [float]: fattore di normalizzazione, A/k corrisponde all'integrale su [0,inf].
     """
-    return A * np.exp(-1 * lam * x)
+    return A * np.exp(-1 * k * x)
 
 def gauss(x, mu, sigma, A):
     """
@@ -107,6 +38,41 @@ def gauss(x, mu, sigma, A):
     A [float]: A * sqrt(2) * sigma corrisponde all'integrale su [-inf,inf]
     """
     return A * np.exp(-0.5 * ((x-mu)/sigma)**2)
+
+def gauss_exp(x, A, mu, sigma, B0, k, B1):
+    """
+    Somma di una gaussiana, di un esponenziale e di una costante.
+    
+    x [float]: Variabile indipendente.
+    mu [float]: media della gaussiana.
+    sigma [float]: larghezza della gaussiana.
+    A [float]: A * sqrt(2) * sigma corrisponde all'integrale su [-inf,inf] della gaussiana
+    k [float]: coefficiente della caduta esponenziale.
+    B0 [float]: fattore di normalizzazione, A/k corrisponde all'integrale su [0,inf] dell'esponenziale.
+    B1 [float]: Costante di offset.
+    """
+
+    g = gauss(x, mu, sigma, A)
+    fondo = expo(x, k, B0) + B1 
+    return g + fondo
+
+def double_gauss_exp(x, A1, mu1, sigma1, A2, mu2, sigma2, B0, k, B1):
+    """
+    Somma di due gaussiane, di un esponenziale e di una costante.
+    
+    x [float]: Variabile indipendente.
+    mu* [float]: media della gaussiana.
+    sigma* [float]: larghezza della gaussiana.
+    A* [float]: A * sqrt(2) * sigma corrisponde all'integrale su [-inf,inf] della gaussiana
+    k [float]: coefficiente della caduta esponenziale.
+    B0 [float]: fattore di normalizzazione, A/k corrisponde all'integrale su [0,inf] dell'esponenziale.
+    B1 [float]: Costante di offset.
+    """
+
+    g1 = gauss(x, mu1, sigma1, A1)
+    g2 = gauss(x, mu2, sigma2, A2)
+    fondo = expo(x, k, B0) + B1 
+    return g1 + g2 + fondo
 
     
 
