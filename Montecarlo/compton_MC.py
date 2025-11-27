@@ -8,6 +8,8 @@ import time
 import os
 
 ######## Constanti ########
+N_MC = int(5e7) # Num samples (MASSIMO 5e7 SE NON VUOI FAR DIVENTARE IL TUO COMPUTER UN TERMOSIFONE)
+
 ### Geometria:
 RCOL = 1 # Raggio collimatore [m]
 L = 11 #Lunghezza collimatore [cm]
@@ -16,6 +18,7 @@ RP = 2.5 # Raggio plastico [cm]
 DSP = 1.5 # Distanza sorgente - plastico [cm]
 DBC = 47 # Distanza bersaglio - cristallo [cm]
 RC = 2.9 # Raggio del cristallo [cm]
+LC = 9 # Lunghezza del cristallo [cm]
 SAAC = np.arctan(RC/DBC) # Semi-apertura angolare del cristallo [rad]
 FLUSSO = 2258 # Fotoni al secondo
 
@@ -30,12 +33,9 @@ E1, E2 = 1173.240, 1332.508 # Energie dei fotoni
 
 ### Config
 THETA_MIN, THETA_MAX = -np.pi, np.pi # Theta min e max
-THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 10000) # Theta mesh
+THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 1000) # Theta mesh
 STAT_DES = 10000 # Statistica desiderata per l'esperimento
 np.random.seed(42) # Seed
-
-N_MC = int(5e7) # Num samples (MASSIMO 5e7 SE NON VUOI FAR DIVENTARE IL TUO COMPUTER UN TERMOSIFONE)
-
 
 ######## Classi ########
 class Materiale:
@@ -72,8 +72,10 @@ class Materiale:
         """
         sigma_pe = self.sigmas()["fotoelettrico"](E)
         sigma_c = self.sigmas()["compton"](E)
+
         clm_pe = 1/(self.density*sigma_pe)
         clm_c = 1/(self.density*sigma_c)
+
         L_pe = -clm_pe*np.log(np.random.uniform(0,1, E.shape))
         L_c = -clm_c*np.log(np.random.uniform(0,1, E.shape))
 
@@ -181,36 +183,79 @@ class Fotone:
             scatter_angle = np.full(len(xs),None)
         return xs,ys,zs, np.degrees(phi), np.degrees(psi), scatter_angle
 
+    def isinside(x,y,z, volume):
+        """ Vede se il fotone sta dentro un solido
+        Mi raccomando, coordinate x,y,z con z l'asse del prisma e l'origine nel centro della sup vicina, in cm
+        """
+
+        r = np.sqrt(x**2+y**2)
+        mask = (r < volume.raggio) & (z < volume.lunghezza)
+        if mask.shape == ():
+            return bool(mask)
+        return mask
+
     def scatter_inside(self, volume):
-        E = self.energia
+
         c = volume.centro_sup_vicina
         a = volume.angolo
-        raggio = volume.raggio
-        lunghezza = volume.lunghezza
+
+        E = self.energia.copy()
+        E_depositata = np.zeros_like(E)
 
         phi, psi = self.phi, self.psi
         x,y,z = self.px-c[0], self.py-c[1], self.pz-c[2]
-        x,y,z = x, ((y*np.cos(a))-(z*np.sin(a))), ((y*np.sin(a))+(z*np.cos(a))) # Posizione nelle nuove coordinate del sistema cartesiano
-        phi, psi = phi-a, psi
+        y,z = ((y*np.cos(a))-(z*np.sin(a))), ((y*np.sin(a))+(z*np.cos(a))) # Posizione nelle nuove coordinate del sistema cartesiano
+        p = np.stack((x, y, z), axis=-1)
 
+        phi, psi = phi-a, psi
         dx, dy, dz = np.sin(psi), np.sin(phi)*np.cos(psi), np.cos(phi)*np.cos(psi)
         d = np.stack((dx, dy, dz), axis=-1)
 
-        r = np.sqrt(x**2+y**2)
+        active = np.ones(len(E), dtype=bool) # Fotoni "attivi"
+        while np.any(active):
+            L, tipo = volume.cml(E[active])
+            new_p = p[active] + d[active] * L[:, np.newaxis]
+            inside = self.isinside(new_p.T, volume)
 
+            escaped = ~inside
+            if np.any(escaped):
+                idx_escaped = np.where(active)[0][escaped]
+                no_deposit = E_depositata[idx_escaped] == 0
+                E_depositata[idx_escaped[no_deposit]] = np.nan
+                active[idx_escaped] = False
 
-        E_depositata = 0
-        while z<lunghezza and r<raggio and E<1:
-            if volume.cml(E)[1] == "Fotoelettrico":
-                E_depositata += E
-                E=0
-            else:
-                E_depositata += compton(angolo)
-                E += - compton(angolo)
-                #aggiorna angolo
-        
-            
-            
+            inside_idx = np.where(active)[0][inside]
+            if len(inside_idx) == 0:
+                break  # no active photons remain
+
+            pe_mask = (tipo[inside] == "Fotoelettrico")
+            compton_mask = ~pe_mask
+
+            idx_pe = inside_idx[pe_mask]
+            E_depositata[idx_pe] += E[idx_pe]
+            E[idx_pe] = 0
+            active[idx_pe] = False  # done
+
+            idx_c = inside_idx[compton_mask]
+            if len(idx_c) > 0:
+                deposited = compton(E[idx_c])
+                E_depositata[idx_c] += deposited
+                E[idx_c] -= deposited
+
+                # Aggiorna angoli di scattering
+                scatter_angle = campiona_kn(THETA_MESH, E[idx_c], len(idx_c))
+                delta = np.random.uniform(-np.pi/2, np.pi/2, size=len(idx_c))
+                phi[idx_c] += scatter_angle * np.cos(delta)
+                psi[idx_c] += scatter_angle * np.sin(delta)
+
+                # Aggiorna posizioni
+                p[idx_c] = new_p[compton_mask]
+                dx = np.sin(psi[idx_c])
+                dy = np.sin(phi[idx_c]) * np.cos(psi[idx_c])
+                dz = np.cos(phi[idx_c]) * np.cos(psi[idx_c])
+                d[idx_c] = np.stack((dx, dy, dz), axis=-1)
+
+        return E_depositata
         
 
 ######## Funzioni ########
@@ -220,7 +265,7 @@ def kn(theta, E):
 
     Parametri:
     theta: angolo di scattering
-    E: energia del fotone incidente (keV)
+    E: energia del fotone incidente (keV) passato come nparray
 
     Retruns:
     Sezione d'urto differenziale
@@ -235,12 +280,11 @@ def campiona_kn(theta_mesh, E, N):
 
     Parametri:
     theta_mesh: Un mesh di theta da esplorare (linspace theta min-max)
-    E: Energia del fotone incidente
+    E: Energia del fotone incidente nparray
     N: Numero di campionamenti
 
     Returns: Numpy array di N angoli (in radianti) distribuiti secondo la KN normalizzata
     """""
-
     kn_norm = kn(theta_mesh, E) / integrate.quad(kn, -np.pi, np.pi, args=(E))[0] #Klein Nishima normalizzata 0-1
     cdf = np.cumsum(kn_norm) * (theta_mesh[1] - theta_mesh[0])  
     cdf = cdf / cdf[-1] 
@@ -268,6 +312,7 @@ def mc(E, phi_cristallo=PHI):
     plastico    = Superficie(RP, (0,0,0), 0)
     cristallo   = Superficie(RC,(0,DBC*np.sin(np.radians(phi_cristallo)), DBC*np.cos(np.radians(phi_cristallo))), phi_cristallo)
     NaI         = Materiale("NaI", 3.67)
+    PMT2        = Volume(NaI, RC, LC, (0,DBC*np.sin(np.radians(phi_cristallo)), DBC*np.cos(np.radians(phi_cristallo))), phi_cristallo)
 
     ## Sorgente - collimatore
     xs, ys, zs = sorgente.pos_sul_piano_unif(N_MC, debug_graph=False) # Genera N punti uniformi sulla sorgente
@@ -294,7 +339,7 @@ def mc(E, phi_cristallo=PHI):
 
     # Deposito d'energia dentro il cristallo
     f = Fotone(E, xcr, ycr, zcr, phicr, psicr)
-    energie = f.energia_disp(volume) 
+    energie = f.scatter_inside(PMT2) 
 
     #energie = compton(E, scatter_angles, 5)
     #plt.hist(energie, bins=np.linspace(energie.min(), energie.max(), 40), label=E, histtype="step")
@@ -302,8 +347,8 @@ def mc(E, phi_cristallo=PHI):
     return energie, scatter_angles
 
 def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
-    energie1, scatter_angles1 = mc(E1, phi_cristallo)
-    energie2, scatter_angles2 = mc(E2, phi_cristallo)
+    energie1, scatter_angles1 = mc(np.full(N_MC, E1), phi_cristallo)
+    energie2, scatter_angles2 = mc(np.full(N_MC, E2), phi_cristallo)
 
     if plot_scatter_angles:
         angoli = np.concatenate((np.degrees(scatter_angles1),np.degrees(scatter_angles2)))
@@ -345,9 +390,8 @@ def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
 ######## Monte-Carlo ########
 start = time.time()
 
-#plot_compton(phi_cristallo=15, plot_scatter_angles=True, all_peaks=True)
-NaI         = Materiale("NaI", 3.67)
-print(NaI.cml(np.array([150,150, 1500])))
+plot_compton(phi_cristallo=15, plot_scatter_angles=True, all_peaks=True)
+
 
 end = time.time()
 print(f'Tempo impiegato: {round(end - start,2)}s')
