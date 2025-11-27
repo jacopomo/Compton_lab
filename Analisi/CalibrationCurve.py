@@ -90,28 +90,31 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
         popt, pcov = curve_fit(fit_function, x_win, y_win, p0=p0, bounds=(bounds_min, bounds_max), maxfev=20000)
         err_mu = np.sqrt(np.diag(pcov))[musk]
 
+        
+        # Visualizzazione risultato fit
+        plt.figure(figsize=(6, 4))
+        plt.step(bin_centers, counts, where='mid', color='lightgray', label='Spettro intero')
+        plt.plot(x_win, y_win, 'b.', label='Dati Finestra')
+
+        x_plot = np.linspace(min(x_win), max(x_win), 500)
+        plt.plot(x_plot, fit_function(x_plot, *popt), 'r-', linewidth=2, label=f'Fit (mu={popt[1]:.2f})')
+
+        plt.title(f"Fit: {nome}")
+        plt.xlabel("Canale")
+        plt.ylabel("Conteggi")
+        plt.xlim(low*0.8, high*1.2) # Zoom
+        plt.legend()
+
+        if printing:
+            print(f"  --> OK! Picco trovato a canale {popt[musk]} +/- {err_mu}")
+            print(f"  --> Contronto tra parametri di fit e parametri iniziali:")
+            print(f"      popt = {popt}")
+            print(f"      p0   = {p0}")
+        
         if visualizzare:
-            # Visualizzazione risultato fit
-            plt.figure(figsize=(6, 4))
-            plt.step(bin_centers, counts, where='mid', color='lightgray', label='Spettro intero')
-            plt.plot(x_win, y_win, 'b.', label='Dati Finestra')
-
-            x_plot = np.linspace(min(x_win), max(x_win), 500)
-            plt.plot(x_plot, fit_function(x_plot, *popt), 'r-', linewidth=2, label=f'Fit (mu={popt[1]:.2f})')
-
-            plt.title(f"Fit: {nome}")
-            plt.xlabel("Canale")
-            plt.ylabel("Conteggi")
-            plt.xlim(low*0.8, high*1.2) # Zoom
-            plt.legend()
-
-            if printing:
-                print(f"  --> OK! Picco trovato a canale {popt[1]:.2f} +/- {err_mu:.2f}")
-                print(f"  --> Contronto tra parametri di fit e parametri iniziali:")
-                print(f"      popt = {popt[0]:.2f}, {popt[1]:.2f}, {popt[2]:.2f}, {popt[3]:.2f} {popt[4]:.6f} {popt[5]:.2f}")
-                print(f"      p0   = {p0[0]:.2f}, {p0[1]:.2f}, {p0[2]:.2f}, {p0[3]:.2f} {p0[4]:.6f} {p0[5]:.2f}")
-
             plt.show()
+        else:
+            plt.close()
 
         return popt[musk], err_mu
 
@@ -131,6 +134,11 @@ with open(file_config, 'r') as f:
 
 resize = config_globale['resize_factor']
 lista_sorgenti = config_globale['sorgenti']
+
+enable_print = bool(config_globale["print"])
+enable_show = bool(config_globale["show"])
+
+
 num_bins = int(8192 / resize)
 
 print(f"--- AVVIO CALIBRAZIONE AUTOMATICA (Resize: {resize}) ---")
@@ -139,6 +147,8 @@ print(f"--- AVVIO CALIBRAZIONE AUTOMATICA (Resize: {resize}) ---")
 punti_ch = np.array([])
 punti_E = np.array([])
 errori_ch = np.array([])
+nomi_souce = np.array([])
+fit_or_not = np.array([])
 cache_dati = {} # Per non ricaricare i file se usati più volte
 
 for sorgente in lista_sorgenti:
@@ -164,14 +174,23 @@ for sorgente in lista_sorgenti:
     centers, counts = cache_dati[nome_file]
     
     # Fit
-    mu, err = esegui_fit(centers, counts, sorgente, printing=False, visualizzare=True)
+    mu, err = esegui_fit(centers, counts, sorgente, printing=enable_print, visualizzare=enable_show)
     
     if mu is not None:
         punti_ch = np.concatenate((punti_ch, mu))
         punti_E = np.concatenate((punti_E, sorgente['energia']))
         errori_ch = np.concatenate((errori_ch, err))
 
-    print(punti_ch)
+        gattuso = np.empty(len(mu),dtype="U50")
+        gattuso[0] = sorgente['nome']
+        print(gattuso)
+        nomi_souce = np.concatenate((nomi_souce, gattuso))
+
+        if sorgente.get('fit or not') is not None:
+            fit_or_not = np.concatenate((fit_or_not, sorgente['fit or not']))
+        else: 
+            fit_or_not = np.concatenate((fit_or_not, np.ones(len(mu))))
+
 
 # --- 5. RISULTATI FINALI ---
 
@@ -179,18 +198,21 @@ if len(punti_ch) < 2:
     print("\nERRORE: Non ho trovato abbastanza picchi validi per calibrare.")
     exit()
 
-x_val = np.sort(punti_ch)
-y_val = np.sort(punti_E)
+elon = fit_or_not == 1
+x_val = punti_ch[elon]
+y_val = punti_E[elon]
+errori_ch= errori_ch[elon]
 
-# Regressione Lineare
+# Regressione Lineare 
+
 res = linregress(x_val, y_val)
 m, q, r2 = res.slope, res.intercept, res.rvalue**2
 
 print("\n" + "="*40)
 print(" RISULTATI CALIBRAZIONE COMPLETA")
 print("="*40)
-for c, e in zip(x_val, y_val):
-    print(f"  Canale {c:.2f} -> {e:.2f} keV")
+for c, e, n in zip(x_val, y_val, nomi_souce):
+    print(f" Canale {c:.2f} -> {e:.2f} keV    {n}")
 
 print("-" * 40)
 print(f"Pendenza (Guadagno) m: {m:.5f} keV/Canale")
