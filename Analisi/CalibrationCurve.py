@@ -9,8 +9,8 @@ import inspect
 import utils as u
 
 # --- 1. MODELLO MATEMATICO ---
-functions_list = {"gauss_exp":u.gauss_exp,
-                 "double_gauss_exp":u.double_gauss_exp}
+functions_list = {"gauss_exp":{"func":u.gauss_exp, "num peak": 1},
+                  "double_gauss_exp":{"func":u.double_gauss_exp, "num peak": 2}}
 
 # --- 2. FUNZIONE DI FIT ---
 def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzare=False):
@@ -41,14 +41,18 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
     # Scelgo La Funzione Di Fit
     if special_fit is not None:
         try:
-            fit_function = functions_list[special_fit]
+            fit_function = functions_list[special_fit]["func"]
+            num_peak = functions_list[special_fit]["num peak"]
+            pippo = np.arange(num_peak, dtype=int)
+            musk = np.ones(len(pippo), dtype=int) + 3 * pippo
             if printing:
                 print(f"  --> Selezionato manualmente la funzione di fit '{special_fit}'")
         except:
             print(f"\n  --> ERRORE:'{special_fit}' non rietra tra le funzioni di fit possibili.\n")
             return None, None
     else:
-        fit_function = functions_list["gauss_exp"]
+        fit_function = functions_list["gauss_exp"]["func"]
+        musk = [1]
     
     #Fisso I Parametri Iniziali
     num_par = len(inspect.signature(fit_function).parameters) - 1
@@ -84,7 +88,7 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
     try:
         
         popt, pcov = curve_fit(fit_function, x_win, y_win, p0=p0, bounds=(bounds_min, bounds_max), maxfev=20000)
-        err_mu = np.sqrt(np.diag(pcov))[1]
+        err_mu = np.sqrt(np.diag(pcov))[musk]
 
         if visualizzare:
             # Visualizzazione risultato fit
@@ -109,7 +113,7 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
 
             plt.show()
 
-        return popt[1], err_mu
+        return popt[musk], err_mu
 
     except Exception as e:
         print(f"  --> FIT FALLITO: {e}")
@@ -132,9 +136,9 @@ num_bins = int(8192 / resize)
 print(f"--- AVVIO CALIBRAZIONE AUTOMATICA (Resize: {resize}) ---")
 
 # --- 4. CICLO DI ANALISI ---
-punti_ch = []
-punti_E = []
-errori_ch = []
+punti_ch = np.array([])
+punti_E = np.array([])
+errori_ch = np.array([])
 cache_dati = {} # Per non ricaricare i file se usati più volte
 
 for sorgente in lista_sorgenti:
@@ -163,9 +167,11 @@ for sorgente in lista_sorgenti:
     mu, err = esegui_fit(centers, counts, sorgente, printing=False, visualizzare=True)
     
     if mu is not None:
-        punti_ch.append(mu)
-        punti_E.append(sorgente['energia'])
-        errori_ch.append(err)
+        punti_ch = np.concatenate((punti_ch, mu))
+        punti_E = np.concatenate((punti_E, sorgente['energia']))
+        errori_ch = np.concatenate((errori_ch, err))
+
+    print(punti_ch)
 
 # --- 5. RISULTATI FINALI ---
 
@@ -173,8 +179,8 @@ if len(punti_ch) < 2:
     print("\nERRORE: Non ho trovato abbastanza picchi validi per calibrare.")
     exit()
 
-x_val = np.array(punti_ch)
-y_val = np.array(punti_E)
+x_val = np.sort(punti_ch)
+y_val = np.sort(punti_E)
 
 # Regressione Lineare
 res = linregress(x_val, y_val)
