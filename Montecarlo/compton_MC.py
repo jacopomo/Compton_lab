@@ -8,7 +8,7 @@ import time
 import os
 
 ######## Constanti ########
-N_MC = int(5e7) # Num samples (MASSIMO 5e7 SE NON VUOI FAR DIVENTARE IL TUO COMPUTER UN TERMOSIFONE)
+N_MC = int(5e5) # Num samples (MASSIMO 5e7 SE NON VUOI FAR DIVENTARE IL TUO COMPUTER UN TERMOSIFONE)
 
 ### Geometria:
 RCOL = 1 # Raggio collimatore [m]
@@ -35,6 +35,9 @@ E1, E2 = 1173.240, 1332.508 # Energie dei fotoni
 THETA_MIN, THETA_MAX = -np.pi, np.pi # Theta min e max
 THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 1000) # Theta mesh
 STAT_DES = 10000 # Statistica desiderata per l'esperimento
+E_ref = np.linspace(1, 2000, 100)  # 100 bins da 1 keV a 2000 keV
+E_ref = np.concatenate(([E1, E2], E_ref))  # Energie importanti
+
 np.random.seed(42) # Seed
 
 ######## Classi ########
@@ -121,8 +124,8 @@ class Volume:
         self.lunghezza = lunghezza
         self.materiale = materiale
     
-    def cml(self):
-        self.materiale.cml()
+    def cml(self, E):
+        self.materiale.cml(E)
 
 class Fotone:
     def __init__(self, energia, px, py, pz, phi, psi): #Passa gradi phi psi
@@ -244,7 +247,7 @@ class Fotone:
 
                 # Aggiorna angoli di scattering
                 scatter_angle = campiona_kn(THETA_MESH, E[idx_c], len(idx_c))
-                delta = np.random.uniform(-np.pi/2, np.pi/2, size=len(idx_c))
+                delta = np.random.uniform(-np.pi/2, np.pi/2)
                 phi[idx_c] += scatter_angle * np.cos(delta)
                 psi[idx_c] += scatter_angle * np.sin(delta)
 
@@ -338,17 +341,17 @@ def mc(E, phi_cristallo=PHI):
     print(f"{round((STAT_DES*len(xp))/(FLUSSO*len(xcr)*3600),2)} ore per avere {STAT_DES} eventi")
 
     # Deposito d'energia dentro il cristallo
-    f = Fotone(E, xcr, ycr, zcr, phicr, psicr)
-    energie = f.scatter_inside(PMT2) 
+    #f = Fotone(np.full(len(xcr), E), xcr, ycr, zcr, phicr, psicr)
+    #energie = f.scatter_inside(PMT2) 
 
-    #energie = compton(E, scatter_angles, 5)
+    energie = compton(E, scatter_angles, 5)
     #plt.hist(energie, bins=np.linspace(energie.min(), energie.max(), 40), label=E, histtype="step")
 
     return energie, scatter_angles
 
 def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
-    energie1, scatter_angles1 = mc(np.full(N_MC, E1), phi_cristallo)
-    energie2, scatter_angles2 = mc(np.full(N_MC, E2), phi_cristallo)
+    energie1, scatter_angles1 = mc(E1 ,phi_cristallo)
+    energie2, scatter_angles2 = mc(E2, phi_cristallo)
 
     if plot_scatter_angles:
         angoli = np.concatenate((np.degrees(scatter_angles1),np.degrees(scatter_angles2)))
@@ -357,7 +360,7 @@ def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
         plt.axvline(np.mean(angoli), color="red", linestyle="--", label=f"Angolo medio: {np.mean(angoli)} gradi")
         plt.title(f"Distribuzione degli angoli di scattering per il cristallo posto a {phi_cristallo} gradi")
         plt.legend(loc="upper right")
-        file_path = os.path.join("Montecarlo\Simulazioni", f"simul_dist_{phi_cristallo}gradi.png")
+        file_path = os.path.join("Montecarlo\Simulazioni\Distribuzioni", f"simul_dist_{phi_cristallo}gradi.png")
         plt.savefig(file_path)
         plt.show()
         pass
@@ -380,10 +383,10 @@ def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
     en1 = np.pad(energie1, (0, len(sommato) - len(energie1)), constant_values=np.nan)
     en2 = np.pad(energie2, (0, len(sommato) - len(energie2)), constant_values=np.nan)
     
-    file_path = os.path.join("Montecarlo\Simulazioni", f"simul_picchi_{phi_cristallo}gradi.png")
+    file_path = os.path.join("Montecarlo\Simulazioni\Istogrammi", f"simul_picchi_{phi_cristallo}gradi.png")
     plt.savefig(file_path)
 
-    file_path = os.path.join("Montecarlo\Simulazioni", f'simul_dati_{phi_cristallo}gradi.csv')
+    file_path = os.path.join("Montecarlo\Simulazioni\CSV", f'simul_dati_{phi_cristallo}gradi.csv')
     np.savetxt(file_path, np.column_stack((en1, en2, sommato)), delimiter=',', header="Picco 1, Picco2, Segnale combinato")
     return sommato
 
