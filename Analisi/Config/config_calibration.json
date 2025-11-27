@@ -1,13 +1,17 @@
 {
     "commento": "Configurazione Calibrazione: Am + Na(511) + Cs + Co, [A, mu, sigma, B0, k, B1]",
     "resize_factor": 8,
+    "print": 1,
+    "show":0,
     "sorgenti": [
         {
             "nome": "Americio-241",
             "file": "Am241.dat",
-            "energia": [59.54],
-            "finestra": [138, 500],
-            "guess": [5891, 243, 24, 261, 0.00001, 250]
+            "energia": [55.56, 59.54],
+            "fit or not": [0, 1],
+            "finestra": [138, 400],
+            "guess": [580, 210, 24, 5891, 243, 24, 261, 0.00001, 250],
+            "special fit": "double_gauss_exp"
         },
         {
             "nome": "Sodio-22 (Annichilazione)",
@@ -28,7 +32,7 @@
             "file": "Co60.dat",
             "energia": [1173.2, 1332.5],
             "finestra": [4550, 6500],
-            "guess": [452, 5409, 131, 452, 4769, 131, 1291, 0.001, 7],
+            "guess": [452, 4769, 131, 452, 5409, 131, 1291, 0.001, 7],
             "special fit": "double_gauss_exp"
         }
     ]
