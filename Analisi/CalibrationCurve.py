@@ -132,16 +132,12 @@ if not os.path.exists(file_config):
 with open(file_config, 'r') as f:
     config_globale = json.load(f)
 
-resize = config_globale['resize_factor']
 lista_sorgenti = config_globale['sorgenti']
 
 enable_print = bool(config_globale["print"])
 enable_show = bool(config_globale["show"])
 
-
-num_bins = int(8192 / resize)
-
-print(f"--- AVVIO CALIBRAZIONE AUTOMATICA (Resize: {resize}) ---")
+print(f"--- AVVIO CALIBRAZIONE AUTOMATICA ---")
 
 # --- 4. CICLO DI ANALISI ---
 punti_ch = np.array([])
@@ -162,6 +158,9 @@ for sorgente in lista_sorgenti:
             continue
         
         try:
+            resize = sorgente['resize_factor']
+            num_bins = int(8192 / resize)
+
             dat = np.loadtxt(path, dtype=int, unpack=True)
             unbinned = np.repeat(np.arange(dat.size, dtype=int), dat)
             counts, bin_edges = np.histogram(unbinned, bins=num_bins)

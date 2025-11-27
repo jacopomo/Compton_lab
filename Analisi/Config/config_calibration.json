@@ -1,8 +1,7 @@
 {
     "commento": "Configurazione Calibrazione: Am + Na(511) + Cs + Co, [A, mu, sigma, B0, k, B1]",
-    "resize_factor": 8,
-    "print": 1,
-    "show":0,
+    "print": 0,
+    "show": 1,
     "sorgenti": [
         {
             "nome": "Americio-241",
@@ -10,6 +9,7 @@
             "energia": [55.56, 59.54],
             "fit or not": [0, 1],
             "finestra": [138, 400],
+            "resize_factor": 1,
             "guess": [580, 210, 24, 5891, 243, 24, 261, 0.00001, 250],
             "special fit": "double_gauss_exp"
         },
@@ -18,6 +18,7 @@
             "file": "Na22.dat",
             "energia": [511.0],
             "finestra": [1790, 2550],
+            "resize_factor": 8,
             "guess": [252, 2100, 78, 225, 0.001, 170]
         },
         {
@@ -25,6 +26,7 @@
             "file": "Cs137.dat",
             "energia": [661.7],
             "finestra": [2050, 3750],
+            "resize_factor": 8,
             "guess": [437, 2725, 85, 291, 0.0008, 15]
         },
         {
@@ -32,6 +34,7 @@
             "file": "Co60.dat",
             "energia": [1173.2, 1332.5],
             "finestra": [4550, 6500],
+            "resize_factor": 8,
             "guess": [452, 4769, 131, 452, 5409, 131, 1291, 0.001, 7],
             "special fit": "double_gauss_exp"
         }
