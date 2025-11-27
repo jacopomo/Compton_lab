@@ -1,7 +1,9 @@
+##### WORK IN PROGRESS!!!!
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 import scipy.interpolate as interp
+from scipy.interpolate import CubicSpline
 import time
 import os
 
@@ -34,7 +36,54 @@ np.random.seed(42) # Seed
 
 N_MC = int(5e7) # Num samples (MASSIMO 5e7 SE NON VUOI FAR DIVENTARE IL TUO COMPUTER UN TERMOSIFONE)
 
+
 ######## Classi ########
+class Materiale:
+    def __init__(self, formula, density):
+        """""
+        formula: str
+        density: float [g/cm^3]
+        """""
+        self.formula = formula
+        self.density = density
+        self._splines_built = False
+
+    def _build_splines(self):
+        """Metodo privato, leggi il file una volta"""
+        ph_E, sigma_c, sigma_pe, sigma_tot = np.loadtxt(f"./Dati_materiali/{self.formula}.txt", skiprows=2, unpack=True)
+        ph_E = ph_E * 1000  # MeV to keV
+
+        self.sigma_c_spline  = CubicSpline(ph_E, sigma_c)
+        self.sigma_pe_spline = CubicSpline(ph_E, sigma_pe)
+        self.sigma_tot_spline = CubicSpline(ph_E, sigma_tot)
+        self._splines_built = True
+
+    def sigmas(self):
+        if not self._splines_built:
+            self._build_splines()
+        return {"compton": self.sigma_c_spline, "fotoelettrico": self.sigma_pe_spline, "totale": self.sigma_tot_spline}
+
+    def cml(self, E):
+        """ Trova il cammino libero medio e lo campiona
+
+        Parametri: 
+        E: Energia in keV del fotone
+        Returns: Cammino in cm
+        """
+        sigma_pe = self.sigmas()["fotoelettrico"](E)
+        sigma_c = self.sigmas()["compton"](E)
+        clm_pe = 1/(self.density*sigma_pe)
+        clm_c = 1/(self.density*sigma_c)
+        L_pe = -clm_pe*np.log(np.random.uniform(0,1, E.shape))
+        L_c = -clm_c*np.log(np.random.uniform(0,1, E.shape))
+
+        mask = L_pe < L_c
+        L = np.where(mask, L_pe, L_c)
+        interaction = np.where(mask, "Fotoelettrico", "Compton")
+
+        if L.size == 1:
+            return L[0], interaction[0]
+        return L, interaction
 
 class Superficie:
     def __init__(self, raggio, centro=(0,0,0), angolo=0): # Passa gradi
@@ -62,6 +111,16 @@ class Superficie:
             plt.show()
         return fx, fy, fz
 
+class Volume:
+    def __init__(self, materiale, raggio, lunghezza, centro_sup_vicina=(0,0,0), angolo=0): # Passa gradi
+        self.centro_sup_vicina = np.array(centro_sup_vicina)
+        self.angolo = np.radians(angolo)
+        self.raggio = raggio
+        self.lunghezza = lunghezza
+        self.materiale = materiale
+    
+    def cml(self):
+        self.materiale.cml()
 
 class Fotone:
     def __init__(self, energia, px, py, pz, phi, psi): #Passa gradi phi psi
@@ -122,6 +181,38 @@ class Fotone:
             scatter_angle = np.full(len(xs),None)
         return xs,ys,zs, np.degrees(phi), np.degrees(psi), scatter_angle
 
+    def scatter_inside(self, volume):
+        E = self.energia
+        c = volume.centro_sup_vicina
+        a = volume.angolo
+        raggio = volume.raggio
+        lunghezza = volume.lunghezza
+
+        phi, psi = self.phi, self.psi
+        x,y,z = self.px-c[0], self.py-c[1], self.pz-c[2]
+        x,y,z = x, ((y*np.cos(a))-(z*np.sin(a))), ((y*np.sin(a))+(z*np.cos(a))) # Posizione nelle nuove coordinate del sistema cartesiano
+        phi, psi = phi-a, psi
+
+        dx, dy, dz = np.sin(psi), np.sin(phi)*np.cos(psi), np.cos(phi)*np.cos(psi)
+        d = np.stack((dx, dy, dz), axis=-1)
+
+        r = np.sqrt(x**2+y**2)
+
+
+        E_depositata = 0
+        while z<lunghezza and r<raggio and E<1:
+            if volume.cml(E)[1] == "Fotoelettrico":
+                E_depositata += E
+                E=0
+            else:
+                E_depositata += compton(angolo)
+                E += - compton(angolo)
+                #aggiorna angolo
+        
+            
+            
+        
+
 ######## Funzioni ########
 
 def kn(theta, E):
@@ -176,6 +267,7 @@ def mc(E, phi_cristallo=PHI):
     collimatore = Superficie(RCOL,(0,0,-DSP), 0)
     plastico    = Superficie(RP, (0,0,0), 0)
     cristallo   = Superficie(RC,(0,DBC*np.sin(np.radians(phi_cristallo)), DBC*np.cos(np.radians(phi_cristallo))), phi_cristallo)
+    NaI         = Materiale("NaI", 3.67)
 
     ## Sorgente - collimatore
     xs, ys, zs = sorgente.pos_sul_piano_unif(N_MC, debug_graph=False) # Genera N punti uniformi sulla sorgente
@@ -191,7 +283,7 @@ def mc(E, phi_cristallo=PHI):
 
     # Plastico - cristallo
     f = Fotone(E, xp, yp, zp, phip, psip)
-    xcr, ycr, zcr, _, _, scatter_angles =  f.calcola_int(cristallo, debug_graph=False, scatter_compton=True)
+    xcr, ycr, zcr, phicr, psicr, scatter_angles =  f.calcola_int(cristallo, debug_graph=False, scatter_compton=True)
     #print(f"{round(100*len(xc)/len(xp),2)}% dei fotoni dal plastico colpiscono il cristallo")
     
     #print(f"{round(100*len(xcr)/len(xs),2)}% dei fotoni generati colpiscono il cristallo")
@@ -199,7 +291,12 @@ def mc(E, phi_cristallo=PHI):
     #plt.hist(np.degrees(scatter_angles), bins=np.linspace(-90,90,80), label=E, histtype="step")
 
     print(f"{round((STAT_DES*len(xp))/(FLUSSO*len(xcr)*3600),2)} ore per avere {STAT_DES} eventi")
-    energie = compton(E, scatter_angles, 5)
+
+    # Deposito d'energia dentro il cristallo
+    f = Fotone(E, xcr, ycr, zcr, phicr, psicr)
+    energie = f.energia_disp(volume) 
+
+    #energie = compton(E, scatter_angles, 5)
     #plt.hist(energie, bins=np.linspace(energie.min(), energie.max(), 40), label=E, histtype="step")
 
     return energie, scatter_angles
@@ -248,7 +345,9 @@ def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
 ######## Monte-Carlo ########
 start = time.time()
 
-plot_compton(phi_cristallo=15, plot_scatter_angles=True, all_peaks=True)
+#plot_compton(phi_cristallo=15, plot_scatter_angles=True, all_peaks=True)
+NaI         = Materiale("NaI", 3.67)
+print(NaI.cml(np.array([150,150, 1500])))
 
 end = time.time()
 print(f'Tempo impiegato: {round(end - start,2)}s')
