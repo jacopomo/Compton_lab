@@ -8,10 +8,10 @@ import time
 import os
 
 ######## Constanti ########
-N_MC = int(5e7) # Num samples (MASSIMO 5e7 SE NON VUOI FAR DIVENTARE IL TUO COMPUTER UN TERMOSIFONE)
+N_MC = int(5e6) # Num samples (MASSIMO 5e7 SE NON VUOI FAR DIVENTARE IL TUO COMPUTER UN TERMOSIFONE)
 
 ### Geometria:
-RCOL = 1 # Raggio collimatore [m]
+RCOL = 1 # Raggio collimatore [cm]
 L = 11 #Lunghezza collimatore [cm]
 SAACOLL = np.degrees(np.arctan(2/L)) # Semi-apertura angolare del collimatore [gradi]
 RP = 2.5 # Raggio plastico [cm]
@@ -28,11 +28,11 @@ PHI = 20  # Angolo al quale si trova il cristallo [gradi]
 ### Fisica
 ALPHA = 1/137 # Costante di struttura fine
 ME = 511 # Massa dell'elettrone [keV]
-RE = 1/(ALPHA*ME) # Raggio classico elettrone
+RE = 2.8179403262e-13 #[cm]
 E1, E2 = 1173.240, 1332.508 # Energie dei fotoni
 
 ### Config
-THETA_MIN, THETA_MAX = -np.pi, np.pi # Theta min e max
+THETA_MIN, THETA_MAX = 0, np.pi # Theta min e max
 THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 1000) # Theta mesh
 STAT_DES = 10000 # Statistica desiderata per l'esperimento
 E_ref = np.linspace(1, 2000, 100)  # 100 bins da 1 keV a 2000 keV
@@ -134,6 +134,7 @@ class Fotone:
         self.phi = np.radians(phi)
         self.psi = np.radians(psi)
 
+
     def calcola_int(self, superficie, debug_graph=False, scatter_compton=False):
         p = np.stack((self.px, self.py, self.pz), axis=-1)
         phi, psi = self.phi, self.psi
@@ -142,7 +143,7 @@ class Fotone:
 
         if scatter_compton:
             scatter_angle = campiona_kn(THETA_MESH, self.energia, len(self.px))
-            delta = np.random.uniform(-np.pi/2,np.pi/2, len(self.px)) 
+            delta = np.random.uniform(-np.pi,np.pi, len(self.px)) 
             phi, psi = phi + (scatter_angle*np.cos(delta)), psi + (scatter_angle*np.sin(delta))
 
         dx, dy, dz = np.sin(psi), np.sin(phi)*np.cos(psi), np.cos(phi)*np.cos(psi)
@@ -190,7 +191,7 @@ class Fotone:
         """
 
         r = np.sqrt(x**2+y**2)
-        mask = (r < vol.raggio) & (z < vol.lunghezza)
+        mask = (r < vol.raggio) & (z < vol.lunghezza) & (z > -0.001)
         if mask.shape == ():
             return bool(mask)
         return mask
@@ -241,12 +242,11 @@ class Fotone:
             idx_c = inside_idx[compton_mask]
             if len(idx_c) > 0:
 
-
                 # Aggiorna angoli di scattering
                 scatter_angle = np.zeros_like(E[idx_c])
                 for i in range(len(E[idx_c])):
                     scatter_angle[i] = campiona_kn(THETA_MESH, E[idx_c][i], 1)
-                delta = np.random.uniform(-np.pi/2, np.pi/2, size=len(idx_c))
+                delta = np.random.uniform(-np.pi, np.pi, size=len(idx_c))
                 phi[idx_c] += scatter_angle * np.cos(delta)
                 psi[idx_c] += scatter_angle * np.sin(delta)
 
@@ -260,9 +260,14 @@ class Fotone:
                 d[idx_c] = np.stack((dx, dy, dz), axis=-1)
 
 
-                deposited = compton(E[idx_c], scatter_angle)
-                E_depositata[idx_c] += deposited
-                E[idx_c] -= deposited
+                new_E = compton(E[idx_c], scatter_angle)
+                E_depositata[idx_c] += (E[idx_c] - new_E)
+                E[idx_c] = new_E
+            #fig = plt.figure(figsize=(12, 12))
+            #ax = fig.add_subplot(projection='3d')
+            #ax.scatter(p[:,0], p[:,1], p[:,2],label=np.sum(active)) 
+            #plt.legend()
+            #plt.show()        
         return E_depositata
         
 
@@ -293,7 +298,7 @@ def campiona_kn(theta_mesh, E, N):
 
     Returns: Numpy array di N angoli (in radianti) distribuiti secondo la KN normalizzata
     """""
-    kn_norm = kn(theta_mesh, E) / integrate.quad(kn, -np.pi, np.pi, args=(E))[0] #Klein Nishima normalizzata 0-1
+    kn_norm = kn(theta_mesh, E) / integrate.quad(kn, 0, np.pi, args=(E))[0] #Klein Nishima normalizzata 0-1
     cdf = np.cumsum(kn_norm) * (theta_mesh[1] - theta_mesh[0])  
     cdf = cdf / cdf[-1] 
     inv_cdf = interp.CubicSpline(cdf, theta_mesh)
@@ -301,18 +306,17 @@ def campiona_kn(theta_mesh, E, N):
     x = inv_cdf(u)
     return x
 
-def compton(E, theta, errore=0):
+def compton(E, theta):
     """"" Calcola l'energia di un fotone entrante con energia E ed angolo theta
 
     Parametri:
     E: Energia in ingresso del fotone
     theta: angolo in ingresso (in radianti) del fotone
-    errore: errore gaussiano strumentale (keV)
 
     Returns:
     Energia del fotone dopo lo scattering
     """""
-    return E/(1+(E*(1-np.cos(theta))/ME)) + np.random.normal(0,errore,1)
+    return E/(1+(E*(1-np.cos(theta))/ME))
 
 def mc(E, phi_cristallo=PHI):
     sorgente    = Superficie(RCOL,(0,0,-DSP-L),0)
@@ -340,18 +344,16 @@ def mc(E, phi_cristallo=PHI):
     #print(f"{round(100*len(xc)/len(xp),2)}% dei fotoni dal plastico colpiscono il cristallo")
     
     #print(f"{round(100*len(xcr)/len(xs),2)}% dei fotoni generati colpiscono il cristallo")
-    print(f"{round(100*len(xcr)/len(xc),2)}% dei fotoni che escono dal collimatore colpiscono il cristallo")
+    #print(f"{round(100*len(xcr)/len(xc),2)}% dei fotoni che escono dal collimatore colpiscono il cristallo")
     #plt.hist(np.degrees(scatter_angles), bins=np.linspace(-90,90,80), label=E, histtype="step")
 
-    print(f"{round((STAT_DES*len(xp))/(FLUSSO*len(xcr)*3600),2)} ore per avere {STAT_DES} eventi")
+    #print(f"{round((STAT_DES*len(xp))/(FLUSSO*len(xcr)*3600),2)} ore per avere {STAT_DES} eventi")
 
-    energie = compton(E, scatter_angles, 5)
+    energie = compton(E, scatter_angles)
     # Deposito d'energia dentro il cristallo
     f = Fotone(energie, xcr, ycr, zcr, phicr, psicr)
     energia_depo = f.scatter_inside(PMT2) 
 
-    #plt.hist(energie, bins=np.linspace(energie.min(), energie.max(), 40), label=E, histtype="step")
-    
     return energia_depo, scatter_angles
 
 def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
@@ -377,8 +379,8 @@ def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
         plt.hist(energie1, bins=binss, color="red", histtype="step", label=f"Picco del fotone di {round(E1,1)}keV", density=False)
         plt.hist(energie2, bins=binss, color="blue", histtype="step", label=f"Picco del fotone di {round(E2,1)}keV", density=False)
     plt.hist(sommato, bins=binss, color="black", histtype="step", label=f"Somma", density=False)
-    plt.axvline(compton(E1, np.mean(scatter_angles1)), color="red",  linestyle="--", label=f"Scattering medio: {round(np.mean(np.degrees(scatter_angles1)),1)} gradi, E={round(compton(E1, np.mean(scatter_angles1))[0],1)}keV")
-    plt.axvline(compton(E2, np.mean(scatter_angles2)), color="blue", linestyle="--", label=f"Scattering medio: {round(np.mean(np.degrees(scatter_angles2)),1)} gradi, E={round(compton(E2, np.mean(scatter_angles2))[0],1)}keV")
+    plt.axvline(compton(E1, np.mean(scatter_angles1)), color="red",  linestyle="--", label=f"Scattering medio: {round(np.mean(np.degrees(scatter_angles1)),1)} gradi, E={round(compton(E1, np.mean(scatter_angles1)),1)}keV")
+    plt.axvline(compton(E2, np.mean(scatter_angles2)), color="blue", linestyle="--", label=f"Scattering medio: {round(np.mean(np.degrees(scatter_angles2)),1)} gradi, E={round(compton(E2, np.mean(scatter_angles2)),1)}keV")
     plt.title(f"Segnale simulato per il cristallo posto a {phi_cristallo} gradi")
     plt.legend(loc="upper right")
 
