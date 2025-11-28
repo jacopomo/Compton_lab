@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.optimize import curve_fit
 from scipy.stats import linregress
 import json
@@ -12,117 +13,134 @@ import utils as u
 functions_list = {"gauss_exp":{"func":u.gauss_exp, "num peak": 1},
                   "double_gauss_exp":{"func":u.double_gauss_exp, "num peak": 2}}
 
-def Calibration(path_files):
-    # --- 2. FUNZIONE DI FIT ---
-    def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzare=False):
+
+# --- 2. FUNZIONE DI FIT ---
+def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzare=False):
+    try:
+        nome = config_sorgente['nome']
+        energia = config_sorgente['energia']
+        finestra = config_sorgente['finestra'] # [low, high]
+        guess = config_sorgente['guess']
+        manual_bounds = config_sorgente.get('bounds')
+        special_fit = config_sorgente.get('special fit') # Opzionale
+    except Exception as e:
+        print(f"\n --> ERRORE: {e}\n            Controlla di aver definito nome, energia, finestra e guess nel file JSON.\n")    
+
+    if printing:
+        print(f"\nAnalisi: {nome} ({energia} keV)...")
+
+    # Selezione Finestra
+    low, high = finestra
+    mask = (bin_centers >= low) & (bin_centers <= high)
+    x_win = bin_centers[mask]
+    y_win = counts[mask]
+
+    # Controllo preliminare dati
+    if len(x_win) < 6:
+        print(f"\n  --> ERRORE: Finestra [{low}-{high}] vuota o troppo stretta!\n")
+        return None, None
+
+    # Scelgo La Funzione Di Fit
+    if special_fit is not None:
         try:
-            nome = config_sorgente['nome']
-            energia = config_sorgente['energia']
-            finestra = config_sorgente['finestra'] # [low, high]
-            guess = config_sorgente['guess']
-            manual_bounds = config_sorgente.get('bounds')
-            special_fit = config_sorgente.get('special fit') # Opzionale
-        except Exception as e:
-            print(f"\n --> ERRORE: {e}\n            Controlla di aver definito nome, energia, finestra e guess nel file JSON.\n")    
+            fit_function = functions_list[special_fit]["func"]
+            num_peak = functions_list[special_fit]["num peak"]
+            pippo = np.arange(num_peak, dtype=int)
+            musk = np.ones(len(pippo), dtype=int) + 3 * pippo
+            if printing:
+                print(f"  --> Selezionato manualmente la funzione di fit '{special_fit}'")
+        except:
+            print(f"\n  --> ERRORE:'{special_fit}' non rietra tra le funzioni di fit possibili.\n")
+            return None, None
+    else:
+        fit_function = functions_list["gauss_exp"]["func"]
+        musk = [1]
+    
+    #Fisso I Parametri Iniziali
+    num_par = len(inspect.signature(fit_function).parameters) - 1
+    if len(guess) == num_par:
+        p0 = guess
+    else:
+        print(f"\n  --> ERRORE: Il numero dei parametri iniziali e' sbagliato!\n             La funzione '{fit_function}' richiede {num_par} parametri\n")
+        return None, None
+    if manual_bounds is not None:
+        try:
+            bounds_min = manual_bounds[0]
+            bounds_max = manual_bounds[1]
+        except:
+            print("\n  --> ERRORE: la varibile bounds nel JSON deve essere una ntuple di due elementi.")
+            return None, None
+        # Controllo che i limiti e i parametri iniziali abbiamo la stessa dimensione
+        if len(bounds_min)!=num_par or len(bounds_max)!=num_par:
+            print(f"\n  --> ERRORE: Il numero dei bounds e' sbagliato!\n             La funzione '{fit_function}' richiede {num_par} parametri\n")
+            return None, None
+    else:
+        if fit_function == u.gauss_exp:
+            #             A,      mu,   sigma,  B0,     k,      B1
+            bounds_min = [0,      low,  0,      0,      0,      0]
+            bounds_max = [np.inf, high, np.inf, np.inf, np.inf, np.inf]
+        if fit_function == u.double_gauss_exp:
+            #             A1,     mu1,  sigma1, A1,     mu1,  sigma1, B0,     k,      B1
+            bounds_min = [0,      low,  0,      0,      low,  0,      0,      0,      0]
+            bounds_max = [np.inf, high, np.inf, np.inf, high, np.inf, np.inf, np.inf, np.inf]
+
+    
+
+    # Esecuzione Fit
+    try:
+        
+        popt, pcov = curve_fit(fit_function, x_win, y_win, p0=p0, bounds=(bounds_min, bounds_max), maxfev=20000)
+        err_mu = np.sqrt(np.diag(pcov))[musk]
+
+        
+        # Visualizzazione risultato fit
+        fig, ax_top = plt.subplots(figsize=(6, 4))
+
+        # spettro sul pannello principale
+        ax_top.step(bin_centers, counts, where='mid', color='lightgray', label='Spettro intero')
+        ax_top.plot(x_win, y_win, 'b.', label='Dati Finestra')
+        x_plot = np.linspace(low, high, 1000)
+        ax_top.plot(x_plot, fit_function(x_plot, *popt), 'r-', linewidth=2, label=f'Fit (mu={popt[1]:.2f})')
+        ax_top.set_ylabel("Conteggi")
+        ax_top.set_title(f"Fit: {nome}")
+        ax_top.legend()
+
+        # crea pannello residui attaccato sotto, senza spazio
+        divider   = make_axes_locatable(ax_top)
+        ax_bottom = divider.append_axes("bottom", size="25%", pad=0.0, sharex=ax_top)
+
+        # residui
+        res = y_win - fit_function(x_win, *popt)
+        ax_bottom.plot(x_win, res, 'b.')
+        ax_bottom.axhline(0, linestyle='--')
+        ax_bottom.set_xlabel("Canale")
+        ax_bottom.set_ylabel("Residui")
+        ax_bottom.set_xlim(low*0.8, high*1.2)
+
+        # niente label x nel pannello sopra
+        ax_top.tick_params(axis='x', labelbottom=False)
+
+        # togli il bordo superiore del pannello residui
+        ax_bottom.tick_params(top=False)
 
         if printing:
-            print(f"\nAnalisi: {nome} ({energia} keV)...")
-
-        # Selezione Finestra
-        low, high = finestra
-        mask = (bin_centers >= low) & (bin_centers <= high)
-        x_win = bin_centers[mask]
-        y_win = counts[mask]
-
-        # Controllo preliminare dati
-        if len(x_win) < 6:
-            print(f"\n  --> ERRORE: Finestra [{low}-{high}] vuota o troppo stretta!\n")
-            return None, None
-
-        # Scelgo La Funzione Di Fit
-        if special_fit is not None:
-            try:
-                fit_function = functions_list[special_fit]["func"]
-                num_peak = functions_list[special_fit]["num peak"]
-                pippo = np.arange(num_peak, dtype=int)
-                musk = np.ones(len(pippo), dtype=int) + 3 * pippo
-                if printing:
-                    print(f"  --> Selezionato manualmente la funzione di fit '{special_fit}'")
-            except:
-                print(f"\n  --> ERRORE:'{special_fit}' non rietra tra le funzioni di fit possibili.\n")
-                return None, None
-        else:
-            fit_function = functions_list["gauss_exp"]["func"]
-            musk = [1]
+            print(f"  --> OK! Picco trovato a canale {popt[musk]} +/- {err_mu}")
+            print(f"  --> Contronto tra parametri di fit e parametri iniziali:")
+            print(f"      popt - p0 = {popt - p0}")
         
-        #Fisso I Parametri Iniziali
-        num_par = len(inspect.signature(fit_function).parameters) - 1
-        if len(guess) == num_par:
-            p0 = guess
+        if visualizzare:
+            plt.show()
         else:
-            print(f"\n  --> ERRORE: Il numero dei parametri iniziali e' sbagliato!\n             La funzione '{fit_function}' richiede {num_par} parametri\n")
-            return None, None
-        if manual_bounds is not None:
-            try:
-                bounds_min = manual_bounds[0]
-                bounds_max = manual_bounds[1]
-            except:
-                print("\n  --> ERRORE: la varibile bounds nel JSON deve essere una ntuple di due elementi.")
-                return None, None
-            # Controllo che i limiti e i parametri iniziali abbiamo la stessa dimensione
-            if len(bounds_min)!=num_par or len(bounds_max)!=num_par:
-                print(f"\n  --> ERRORE: Il numero dei bounds e' sbagliato!\n             La funzione '{fit_function}' richiede {num_par} parametri\n")
-                return None, None
-        else:
-            if fit_function == u.gauss_exp:
-                #             A,      mu,   sigma,  B0,     k,      B1
-                bounds_min = [0,      low,  0,      0,      0,      0]
-                bounds_max = [np.inf, high, np.inf, np.inf, np.inf, np.inf]
-            if fit_function == u.double_gauss_exp:
-                #             A1,     mu1,  sigma1, A1,     mu1,  sigma1, B0,     k,      B1
-                bounds_min = [0,      low,  0,      0,      low,  0,      0,      0,      0]
-                bounds_max = [np.inf, high, np.inf, np.inf, high, np.inf, np.inf, np.inf, np.inf]
+            plt.close()
 
-        
+        return popt[musk], err_mu
 
-        # Esecuzione Fit
-        try:
-            
-            popt, pcov = curve_fit(fit_function, x_win, y_win, p0=p0, bounds=(bounds_min, bounds_max), maxfev=20000)
-            err_mu = np.sqrt(np.diag(pcov))[musk]
+    except Exception as e:
+        print(f"  --> FIT FALLITO: {e}")
+        return None, None
 
-            
-            # Visualizzazione risultato fit
-            plt.figure(figsize=(6, 4))
-            plt.step(bin_centers, counts, where='mid', color='lightgray', label='Spettro intero')
-            plt.plot(x_win, y_win, 'b.', label='Dati Finestra')
 
-            x_plot = np.linspace(min(x_win), max(x_win), 500)
-            plt.plot(x_plot, fit_function(x_plot, *popt), 'r-', linewidth=2, label=f'Fit (mu={popt[1]:.2f})')
-
-            plt.title(f"Fit: {nome}")
-            plt.xlabel("Canale")
-            plt.ylabel("Conteggi")
-            plt.xlim(low*0.8, high*1.2) # Zoom
-            plt.legend()
-
-            if printing:
-                print(f"  --> OK! Picco trovato a canale {popt[musk]} +/- {err_mu}")
-                print(f"  --> Contronto tra parametri di fit e parametri iniziali:")
-                print(f"      popt = {popt}")
-                print(f"      p0   = {p0}")
-            
-            if visualizzare:
-                plt.show()
-            else:
-                plt.close()
-
-            return popt[musk], err_mu
-
-        except Exception as e:
-            print(f"  --> FIT FALLITO: {e}")
-            return None, None
-
+def Calibration(path_files):
     # --- 3. LETTURA DATI E CONFIGURAZIONE ---
     file_config = path_files + r"/config_calibration.json"
 
@@ -235,5 +253,7 @@ def Calibration(path_files):
     plt.legend()
     plt.show()
 
+    return m, q, r2
+
 path = input(" --> Percorso file: ")
-Calibration(path)
+_, _, _ = Calibration(path)
