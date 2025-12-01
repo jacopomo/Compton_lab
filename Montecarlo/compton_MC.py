@@ -33,7 +33,7 @@ E1, E2 = 1173.240, 1332.508 # Energie dei fotoni
 
 ### Config
 THETA_MIN, THETA_MAX = 0, np.pi # Theta min e max
-THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 1000) # Theta mesh
+THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 250) # Theta mesh
 STAT_DES = 10000 # Statistica desiderata per l'esperimento
 E_ref = np.linspace(1, 2000, 100)  # 100 bins da 1 keV a 2000 keV
 E_ref = np.concatenate(([E1, E2], E_ref))  # Energie importanti
@@ -73,6 +73,7 @@ class Materiale:
         E: Energia in keV del fotone
         Returns: Cammino in cm
         """
+        E = np.atleast_1d(E)
         sigma_pe = self.sigmas()["fotoelettrico"](E)
         sigma_c = self.sigmas()["compton"](E)
 
@@ -140,14 +141,14 @@ class Fotone:
         phi, psi = self.phi, self.psi
         centro = superficie.centro
         normal = superficie.normal()
-
-        if scatter_compton:
-            scatter_angle = campiona_kn(THETA_MESH, self.energia, len(self.px))
-            delta = np.random.uniform(-np.pi,np.pi, len(self.px)) 
-            phi, psi = phi + (scatter_angle*np.cos(delta)), psi + (scatter_angle*np.sin(delta))
-
+        
         dx, dy, dz = np.sin(psi), np.sin(phi)*np.cos(psi), np.cos(phi)*np.cos(psi)
         d = np.stack((dx, dy, dz), axis=-1)
+        
+        if scatter_compton:
+            scatter_angle = campiona_kn(THETA_MESH, self.energia, len(self.px))
+            d = direzione_scatter(d, scatter_angle)
+        
         num, denom = (centro-p) @ normal, np.sum(d * normal, axis=-1)
 
         parallel = np.isclose(denom, 0.0, atol=1e-8)
@@ -158,7 +159,7 @@ class Fotone:
         
         forward = (~np.isnan(t)) & (t >= -1e-8)
         if not np.any(forward):
-            return None, None, None, None, None
+            return None, None, None, None, None, None
     
         pts = p + np.expand_dims(t, axis=-1) * d
         pts = pts[forward]
@@ -170,7 +171,7 @@ class Fotone:
         d2 = np.sum((pts - centro)**2, axis=1)
         mask = d2 < superficie.raggio**2
         if len(pts[mask])==0:
-            return None
+            return None, None, None, None, None, None
         xs, ys, zs = pts[mask].T
         phi, psi = phi[mask].T, psi[mask].T
         if scatter_compton:
@@ -191,7 +192,7 @@ class Fotone:
         """
 
         r = np.sqrt(x**2+y**2)
-        mask = (r < vol.raggio) & (z < vol.lunghezza) & (z > -0.001)
+        mask = (r < vol.raggio) & (z < vol.lunghezza) & (z > -1e-9)
         if mask.shape == ():
             return bool(mask)
         return mask
@@ -233,6 +234,9 @@ class Fotone:
 
             pe_mask = (tipo[inside] == "Fotoelettrico")
             compton_mask = ~pe_mask
+            print(f"E media: {np.mean(E[active_idx])}")
+            print(f"Compton: {compton_mask.sum()}")
+            print(f"PE: {pe_mask.sum()}\n")
 
             idx_pe = inside_idx[pe_mask]
             E_depositata[idx_pe] += E[idx_pe]
@@ -242,35 +246,20 @@ class Fotone:
             idx_c = inside_idx[compton_mask]
             if len(idx_c) > 0:
 
-                # Aggiorna angoli di scattering
-                scatter_angle = np.zeros_like(E[idx_c])
-                for i in range(len(E[idx_c])):
-                    scatter_angle[i] = campiona_kn(THETA_MESH, E[idx_c][i], 1)
-                delta = np.random.uniform(-np.pi, np.pi, size=len(idx_c))
-                phi[idx_c] += scatter_angle * np.cos(delta)
-                psi[idx_c] += scatter_angle * np.sin(delta)
+                # Aggiorna angoli di scattering (vectorized by unique energies)
+                scatter_angle = campiona_kn_array(THETA_MESH, E[idx_c])
+                d[idx_c] = direzione_scatter(d[idx_c], scatter_angle)
 
                 # Aggiorna posizioni
                 new_p_active = new_p[inside]      # shape = (#inside, 3)
                 new_p_compton = new_p_active[compton_mask]   # shape = (#compton, 3)
                 p[idx_c] = new_p_compton
-                dx = np.sin(psi[idx_c])
-                dy = np.sin(phi[idx_c]) * np.cos(psi[idx_c])
-                dz = np.cos(phi[idx_c]) * np.cos(psi[idx_c])
-                d[idx_c] = np.stack((dx, dy, dz), axis=-1)
-
 
                 new_E = compton(E[idx_c], scatter_angle)
                 E_depositata[idx_c] += (E[idx_c] - new_E)
-                E[idx_c] = new_E
-            #fig = plt.figure(figsize=(12, 12))
-            #ax = fig.add_subplot(projection='3d')
-            #ax.scatter(p[:,0], p[:,1], p[:,2],label=np.sum(active)) 
-            #plt.legend()
-            #plt.show()        
+                E[idx_c] = new_E        
         return E_depositata
         
-
 ######## Funzioni ########
 
 def kn(theta, E):
@@ -283,6 +272,7 @@ def kn(theta, E):
     Retruns:
     Sezione d'urto differenziale
     """""
+    E = float(E)
     epsilon = E/ME
     lr=1/(1+(epsilon*(1-np.cos(theta))))
 
@@ -298,13 +288,86 @@ def campiona_kn(theta_mesh, E, N):
 
     Returns: Numpy array di N angoli (in radianti) distribuiti secondo la KN normalizzata
     """""
-    kn_norm = kn(theta_mesh, E) / integrate.quad(kn, 0, np.pi, args=(E))[0] #Klein Nishima normalizzata 0-1
-    cdf = np.cumsum(kn_norm) * (theta_mesh[1] - theta_mesh[0])  
-    cdf = cdf / cdf[-1] 
-    inv_cdf = interp.CubicSpline(cdf, theta_mesh)
+    inv_cdf = _get_inv_cdf(theta_mesh, E)
     u = np.random.uniform(0,1, N)
     x = inv_cdf(u)
+    # If a single sample was requested, return a scalar (not an array).
+    if N == 1:
+        return float(x)
     return x
+
+# Cache for inv_cdf splines per energy (float key)
+_campiona_kn_cache = {}
+
+def _get_inv_cdf(theta_mesh, E):
+    """Return a CubicSpline inv_cdf for given energy E, using a module-level cache."""
+    # Use a simple float key; convert to float for consistency
+    key = float(E)
+    if key in _campiona_kn_cache:
+        return _campiona_kn_cache[key]
+    kn_norm = kn(theta_mesh, key) / integrate.quad(kn, 0, np.pi, args=(key))[0]
+    cdf = np.cumsum(kn_norm) * (theta_mesh[1] - theta_mesh[0])
+    cdf = cdf / cdf[-1]
+    inv_cdf = interp.CubicSpline(cdf, theta_mesh)
+    _campiona_kn_cache[key] = inv_cdf
+    return inv_cdf
+
+def campiona_kn_array(theta_mesh, energies):
+    """Vectorized sampling of KN distribution for an array of energies.
+
+    Parameters
+    ----------
+    theta_mesh : array-like
+        Mesh of theta values used by the KN distribution.
+    energies : array-like
+        1D array of energies (one per sample) to draw from.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of sampled theta values, same shape as `energies`.
+    """
+    energies = np.asarray(energies)
+    # get unique energies and counts
+    unique, inv_idx, counts = np.unique(energies, return_inverse=True, return_counts=True)
+    samples = np.empty_like(energies, dtype=float)
+    # For each unique energy (identified by index j), sample count values using cached inv_cdf
+    for j, u in enumerate(unique):
+        pos = np.where(inv_idx == j)[0]
+        cnt = len(pos)
+        if cnt == 0:
+            continue
+        inv = _get_inv_cdf(theta_mesh, u)
+        draws = inv(np.random.uniform(0, 1, cnt))
+        samples[pos] = draws
+    return samples
+
+def direzione_scatter(d, theta):
+    """ Calcola la nuova direzione della particella dopo uno scattering
+    Parametri:
+    d: (N,3) direzioni originali (xyz)
+    theta: (N,) angolo di scattering
+
+    Returns: (N,3) new direction vectors
+    """
+    d = d / np.linalg.norm(d, axis=1)[:,None]   # ensure normalized
+
+    # Scegli vettore arbitrario, se s è già troppo vicino ad x usa z
+    x = np.array([1., 0., 0.])
+    mask = np.abs(d[:,0]) > 0.99
+    a = np.where(mask[:,None], np.array([0.,0.,1.]), x)
+
+    u = np.cross(a, d)
+    u /= np.linalg.norm(u, axis=1)[:,None]
+    
+    v = np.cross(d, u)
+
+    delta = np.random.uniform(-np.pi, np.pi, len(theta))
+    new = (u * (np.sin(theta) * np.cos(delta))[:,None] +
+           v * (np.sin(theta) * np.sin(delta))[:,None] +
+           d * np.cos(theta)[:,None])
+
+    return new
 
 def compton(E, theta):
     """"" Calcola l'energia di un fotone entrante con energia E ed angolo theta
@@ -331,30 +394,24 @@ def mc(E, phi_cristallo=PHI):
     phiphi, psipsi = np.random.uniform(-SAACOLL, SAACOLL, len(xs)), np.random.uniform(-SAACOLL, SAACOLL, len(xs)) # Genera angoli uniformi
     f = Fotone(E, xs, ys, zs, phiphi, psipsi) # Genera fotoni 
     xc, yc, zc, phis, psis, _ = f.calcola_int(collimatore, debug_graph=False) # Trova intersezione con collimatore
-    #print(f"{round(100*len(xc)/len(xs),2)}% dei fotoni generati escono dal collimatore")
 
     # Collimatore - plastico
     f = Fotone(E, xc, yc, zc, phis, psis) # Fotoni sul collimatore con l'angolo da prima
     xp, yp, zp, phip, psip, _ = f.calcola_int(plastico, debug_graph=False) # Trova intersezione con plastico
-    #print(f"{round(100*len(xp)/len(xc),2)}% dei fotoni uscenti colpiscono il plastico")
 
     # Plastico - cristallo
     f = Fotone(E, xp, yp, zp, phip, psip)
     xcr, ycr, zcr, phicr, psicr, scatter_angles =  f.calcola_int(cristallo, debug_graph=False, scatter_compton=True)
-    #print(f"{round(100*len(xc)/len(xp),2)}% dei fotoni dal plastico colpiscono il cristallo")
     
-    #print(f"{round(100*len(xcr)/len(xs),2)}% dei fotoni generati colpiscono il cristallo")
-    #print(f"{round(100*len(xcr)/len(xc),2)}% dei fotoni che escono dal collimatore colpiscono il cristallo")
     #plt.hist(np.degrees(scatter_angles), bins=np.linspace(-90,90,80), label=E, histtype="step")
 
-    #print(f"{round((STAT_DES*len(xp))/(FLUSSO*len(xcr)*3600),2)} ore per avere {STAT_DES} eventi")
-
     energie = compton(E, scatter_angles)
+   
     # Deposito d'energia dentro il cristallo
     f = Fotone(energie, xcr, ycr, zcr, phicr, psicr)
-    energia_depo = f.scatter_inside(PMT2) 
+    energie = f.scatter_inside(PMT2) 
 
-    return energia_depo, scatter_angles
+    return energie, scatter_angles
 
 def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
     energie1, scatter_angles1 = mc(E1 ,phi_cristallo)
@@ -397,10 +454,11 @@ def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
 ######## Monte-Carlo ########
 start = time.time()
 
-plot_compton(phi_cristallo=15, plot_scatter_angles=False, all_peaks=True)
-
+plot_compton(phi_cristallo=15, plot_scatter_angles=False, all_peaks=False)
 
 end = time.time()
+
+
 print(f'Tempo impiegato: {round(end - start,2)}s')
 plt.show()
 
