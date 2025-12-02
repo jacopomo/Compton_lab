@@ -17,8 +17,8 @@ SAACOLL = np.degrees(np.arctan(2/L)) # Semi-apertura angolare del collimatore [g
 RP = 2.5 # Raggio plastico [cm]
 DSP = 1.5 # Distanza sorgente - plastico [cm]
 DBC = 47 # Distanza bersaglio - cristallo [cm]
-RC = 2.9 # Raggio del cristallo [cm]
-LC = 9 # Lunghezza del cristallo [cm]
+RC = 2.54 # Raggio del cristallo [cm]
+LC = 5.08 # Lunghezza del cristallo [cm]
 SAAC = np.arctan(RC/DBC) # Semi-apertura angolare del cristallo [rad]
 FLUSSO = 2258 # Fotoni al secondo
 
@@ -38,7 +38,11 @@ STAT_DES = 10000 # Statistica desiderata per l'esperimento
 E_ref = np.linspace(1, 2000, 100)  # 100 bins da 1 keV a 2000 keV
 E_ref = np.concatenate(([E1, E2], E_ref))  # Energie importanti
 
-np.random.seed(42) # Seed
+ESOGLIA = 750 # Soglia del cristallo [keV]
+EBINMAX = 1250 # Massimo del binning [keV]
+NBINS = 80
+
+#np.random.seed(42) # Seed
 
 ######## Classi ########
 class Materiale:
@@ -429,7 +433,7 @@ def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
         pass
 
     sommato=np.concatenate((energie1, energie2))
-    binss = np.linspace(0,2000, 80)
+    binss = np.linspace(ESOGLIA, EBINMAX, NBINS)
 
     plt.figure(figsize=(12,7), dpi=100)
     if all_peaks:
@@ -454,7 +458,7 @@ def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
 ######## Monte-Carlo ########
 start = time.time()
 
-plot_compton(phi_cristallo=15, plot_scatter_angles=False, all_peaks=False)
+plot_compton(phi_cristallo=30, plot_scatter_angles=False, all_peaks=False)
 
 end = time.time()
 
