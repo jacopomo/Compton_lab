@@ -253,7 +253,6 @@ def Calibration(path_files):
     plt.show()
 
     return m, q, r2
-'''
+
 path = input(" --> Nome directory: ")
 Calibration(path)
-'''
