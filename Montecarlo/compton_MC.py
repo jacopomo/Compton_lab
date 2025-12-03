@@ -34,7 +34,6 @@ E1, E2 = 1173.240, 1332.508 # Energie dei fotoni
 ### Config
 THETA_MIN, THETA_MAX = 0, np.pi # Theta min e max
 THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 250) # Theta mesh
-STAT_DES = 10000 # Statistica desiderata per l'esperimento
 E_ref = np.linspace(1, 2000, 100)  # 100 bins da 1 keV a 2000 keV
 E_ref = np.concatenate(([E1, E2], E_ref))  # Energie importanti
 
@@ -42,7 +41,9 @@ ESOGLIA = 750 # Soglia del cristallo [keV]
 EBINMAX = 1250 # Massimo del binning [keV]
 NBINS = 80
 
-#np.random.seed(42) # Seed
+MAX_CML_TRIES = 5  # Maximum times to re-sample cml for escaping photons
+
+np.random.seed(42) # Seed
 
 ######## Classi ########
 class Materiale:
@@ -201,7 +202,7 @@ class Fotone:
             return bool(mask)
         return mask
 
-    def scatter_inside(self, volume):
+    def scatter_inside(self, volume, debug_graph=False, pause_time=0.6, debug_save=False, save_gif_path=None, debug_slider=False):
 
         c = volume.centro_sup_vicina
         a = volume.angolo
@@ -219,11 +220,108 @@ class Fotone:
         d = np.stack((dx, dy, dz), axis=-1)
 
         active = np.ones(len(E), dtype=bool) # Fotoni "attivi"
+        iteration = 0
+        frames = None
+        # If user requests saving frames or a slider, ensure debug_graph is enabled
+        if (debug_save or debug_slider) and not debug_graph:
+            print('debug_save/debug_slider requested: enabling debug_graph automatically')
+            debug_graph = True
+
+        # For debugging, prepare a figure; we'll plot initial positions and then
+        # update the plot per iteration showing only active photons that are
+        # inside the volume. Optionally capture frames to save an animation or
+        # display with a slider.
+        if debug_graph:
+            fig = plt.figure(figsize=(8, 6))
+            ax = fig.add_subplot(projection='3d')
+            ax.set_title(f"Iteration {iteration}: initial face (active photons)")
+            ax.set_xlabel('x [cm]')
+            ax.set_ylabel('y [cm]')
+            ax.set_zlabel('z [cm]')
+            # Plot initial positions (face)
+            if np.any(active):
+                pts0 = p[active]
+                ax.scatter(pts0[:,0], pts0[:,1], pts0[:,2], c='k', marker='o', s=10, alpha=0.6, label=f'iter {iteration}')
+                ax.legend()
+                plt.draw(); plt.pause(pause_time)
+            ax.view_init(elev=30, azim=40)
+            # Pre-compute static axis limits from volume geometry in the local
+            # coordinate system (p is in coordinates relative to volume's
+            # surface): x,y limited by radius, z limited by [0, lunghezza].
+            if debug_graph:
+                r = volume.raggio
+                ax.set_xlim(-r, r)
+                ax.set_ylim(-r, r)
+                ax.set_zlim(0, volume.lunghezza)
+            frames = []
+            if debug_save:
+                # Capture the initial frame
+                fig.canvas.draw()
+                w,h = fig.canvas.get_width_height()
+                try:
+                    img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((h, w, 3))
+                except Exception:
+                    arr = np.asarray(fig.canvas.buffer_rgba())
+                    if arr.ndim == 3 and arr.shape[2] == 4:
+                        img = arr[:, :, :3].copy()
+                    else:
+                        img = arr.copy()
+                frames.append(img.copy())
         while np.any(active):
             L, tipo = volume.cml(E[active])
             new_p = p[active] + d[active] * L[:, None]
             inside = self.isinside(new_p[:,0], new_p[:,1], new_p[:,2], volume)
 
+            # If a photon escapes (inside == False) we try regenerating the cml
+            # up to MAX_CML_TRIES times trying to obtain a cml that leads to
+            # an interaction inside the volume.
+            if not np.all(inside):
+                # Work with active-local arrays to retry only those that escaped
+                n_active = len(L)
+                attempts = np.zeros(n_active, dtype=int)
+                still_escaped = ~inside
+                # Retry up to MAX_CML_TRIES times
+                while np.any(still_escaped) and np.any(attempts < MAX_CML_TRIES):
+                    to_retry = still_escaped & (attempts < MAX_CML_TRIES)
+                    if not np.any(to_retry):
+                        break
+                    # Resample cml for the subset
+                    L_new, tipo_new = volume.cml(E[active][to_retry])
+                    L[to_retry] = L_new
+                    tipo[to_retry] = tipo_new
+                    new_p[to_retry] = p[active][to_retry] + d[active][to_retry] * L[to_retry][:, None]
+                    inside[to_retry] = self.isinside(new_p[to_retry,0], new_p[to_retry,1], new_p[to_retry,2], volume)
+                    # Update the escape mask and increments attempts only where we retried
+                    still_escaped = ~inside
+                    attempts[to_retry] += 1
+            if debug_graph:
+                inside_local = inside
+                ax.cla()
+                # Keep axes static across frames
+                r = volume.raggio
+                ax.set_xlim(-r, r)
+                ax.set_ylim(-r, r)
+                ax.set_zlim(0, volume.lunghezza)
+                if np.any(inside_local):
+                    ax.scatter(new_p[inside_local,0], new_p[inside_local,1], new_p[inside_local,2], c='r', marker='x', s=30, alpha=0.8, label=f'iter {iteration} interactions')
+                ax.set_title(f"Iteration {iteration}: interaction positions (inside)")
+                ax.set_xlabel('x [cm]')
+                ax.set_ylabel('y [cm]')
+                ax.set_zlabel('z [cm]')
+                ax.legend()
+                plt.draw(); plt.pause(pause_time)
+                if debug_save:
+                    fig.canvas.draw()
+                    w,h = fig.canvas.get_width_height()
+                    try:
+                        img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((h, w, 3))
+                    except Exception:
+                        arr = np.asarray(fig.canvas.buffer_rgba())
+                        if arr.ndim == 3 and arr.shape[2] == 4:
+                            img = arr[:, :, :3].copy()
+                        else:
+                            img = arr.copy()
+                    frames.append(img.copy())
             active_idx = np.where(active)[0]
             escaped = ~inside
             if np.any(escaped):
@@ -262,6 +360,77 @@ class Fotone:
                 new_E = compton(E[idx_c], scatter_angle)
                 E_depositata[idx_c] += (E[idx_c] - new_E)
                 E[idx_c] = new_E        
+
+                # After updating positions and energies for Compton scatters,
+                # show active photon positions for the next iteration (only those still active).
+                iteration += 1
+                if debug_graph:
+                    ax.cla()
+                    # Keep axes static across frames
+                    r = volume.raggio
+                    ax.set_xlim(-r, r)
+                    ax.set_ylim(-r, r)
+                    ax.set_zlim(0, volume.lunghezza)
+                    if np.any(active):
+                        pts_act = p[active]
+                        ax.scatter(pts_act[:,0], pts_act[:,1], pts_act[:,2], c='b', marker='o', s=10, alpha=0.6, label=f'iter {iteration} active')
+                    ax.set_title(f"Iteration {iteration}: active photon positions (inside)")
+                    ax.set_xlabel('x [cm]')
+                    ax.set_ylabel('y [cm]')
+                    ax.set_zlabel('z [cm]')
+                    ax.legend()
+                    plt.draw(); plt.pause(pause_time)
+                    if debug_save:
+                        fig.canvas.draw()
+                        w,h = fig.canvas.get_width_height()
+                        try:
+                            img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape((h, w, 3))
+                        except Exception:
+                            arr = np.asarray(fig.canvas.buffer_rgba())
+                            if arr.ndim == 3 and arr.shape[2] == 4:
+                                img = arr[:, :, :3].copy()
+                            else:
+                                img = arr.copy()
+                        frames.append(img.copy())
+                print("=====================\n")
+            # End while loop
+        # Save animation if requested
+        if debug_save and frames is not None and len(frames) > 0:
+            # frames list created above
+            if save_gif_path is None:
+                save_gif_path = os.path.join('Montecarlo', 'Simulazioni', 'scatter_debug.gif')
+            try:
+                import imageio
+                imageio.mimsave(save_gif_path, frames, duration=pause_time)
+                print(f"Saved animation to {save_gif_path}")
+            except Exception as e:
+                try:
+                    from PIL import Image
+                    pil_imgs = [Image.fromarray(f) for f in frames]
+                    pil_imgs[0].save(save_gif_path, save_all=True, append_images=pil_imgs[1:], duration=int(pause_time*1000), loop=0)
+                    print(f"Saved animation to {save_gif_path} (PIL)")
+                except Exception as ex:
+                    print("Could not save animation (imageio/PIL not available):", ex)
+
+        # Open a simple slider GUI to browse frames if requested
+        if debug_slider and frames is not None and len(frames) > 0:
+            try:
+                from matplotlib.widgets import Slider
+                ffig, fax = plt.subplots(figsize=(8,6))
+                plt.subplots_adjust(bottom=0.2)
+                imgplot = fax.imshow(frames[0])
+                fax.set_axis_off()
+                axslider = plt.axes([0.25, 0.05, 0.5, 0.03])
+                slider = Slider(axslider, 'frame', 0, len(frames)-1, valinit=0, valfmt='%d')
+                def update(val):
+                    idx = int(slider.val)
+                    imgplot.set_data(frames[idx])
+                    ffig.canvas.draw_idle()
+                slider.on_changed(update)
+                plt.show()
+            except Exception as e:
+                print('Could not display slider for frames:', e)
+
         return E_depositata
         
 ######## Funzioni ########
@@ -413,7 +582,7 @@ def mc(E, phi_cristallo=PHI):
    
     # Deposito d'energia dentro il cristallo
     f = Fotone(energie, xcr, ycr, zcr, phicr, psicr)
-    energie = f.scatter_inside(PMT2) 
+    energie = f.scatter_inside(PMT2, debug_graph=True, debug_save=True, save_gif_path='my_scatter_run.gif', debug_slider=True) 
 
     return energie, scatter_angles
 
@@ -456,13 +625,10 @@ def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
     return sommato
 
 ######## Monte-Carlo ########
-start = time.time()
-
-plot_compton(phi_cristallo=30, plot_scatter_angles=False, all_peaks=False)
-
-end = time.time()
-
-
-print(f'Tempo impiegato: {round(end - start,2)}s')
-plt.show()
+if __name__ == '__main__':
+    start = time.time()
+    plot_compton(phi_cristallo=30, plot_scatter_angles=False, all_peaks=False)
+    end = time.time()
+    print(f'Tempo impiegato: {round(end - start,2)}s')
+    plt.show()
 
