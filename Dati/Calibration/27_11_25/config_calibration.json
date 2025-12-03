@@ -1,8 +1,8 @@
 {
     "commento": "Configurazione Calibrazione: Am + Na(511) + Cs + Co, [A, mu, sigma, B0, k, B1]",
     "data": "27_11_25",
-    "print": 1,
-    "show": 1,
+    "print": 0,
+    "show": 0,
     "sorgenti": [
         {
             "nome": "Americio-241",

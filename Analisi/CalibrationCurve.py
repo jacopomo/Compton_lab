@@ -80,10 +80,9 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
             bounds_min = [0,      low,  0,      0,      0,      0]
             bounds_max = [np.inf, high, np.inf, np.inf, np.inf, np.inf]
         if fit_function == u.double_gauss_exp:
-            #             A1,     mu1,  sigma1, A1,     mu1,  sigma1, B0,     k,      B1
+            #             A1,     mu1,  sigma1, A2,     mu2,  sigma2, B0,     k,      B1
             bounds_min = [0,      low,  0,      0,      low,  0,      0,      0,      0]
             bounds_max = [np.inf, high, np.inf, np.inf, high, np.inf, np.inf, np.inf, np.inf]
-
     
 
     # Esecuzione Fit
@@ -127,6 +126,7 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
             print(f"  --> OK! Picco trovato a canale {popt[musk]} +/- {err_mu}")
             print(f"  --> Contronto tra parametri di fit e parametri iniziali:")
             print(f"      popt - p0 = {popt - p0}")
+            print(f"      popt = {popt}")
         
         if visualizzare:
             plt.show()
@@ -201,7 +201,6 @@ def Calibration(path_files):
 
             gattuso = np.empty(len(mu),dtype="U50")
             gattuso[0] = sorgente['nome']
-            print(gattuso)
             nomi_souce = np.concatenate((nomi_souce, gattuso))
 
             if sorgente.get('fit or not') is not None:
@@ -254,6 +253,7 @@ def Calibration(path_files):
     plt.show()
 
     return m, q, r2
-
-path = input(" --> Percorso file: ")
-_, _, _ = Calibration(path)
+'''
+path = input(" --> Nome directory: ")
+Calibration(path)
+'''

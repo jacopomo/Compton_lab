@@ -74,5 +74,25 @@ def double_gauss_exp(x, A1, mu1, sigma1, A2, mu2, sigma2, B0, k, B1):
     fondo = expo(x, k, B0) + B1 
     return g1 + g2 + fondo
 
+def asym_gauss_exp(x, A1, mu, sigma, A2, delta, c, B0, k, B1):
+    """
+    Somma di due gaussiane, di un esponenziale e di una costante.
+    
+    x [float]: Variabile indipendente.
+    mu [float]: media della gaussiana.
+    sigma [float]: larghezza della gaussiana.
+    A* [float]: A * sqrt(2) * sigma corrisponde all'integrale su [-inf,inf] della gaussiana
+    delta [float]: distanza tra le due gaussiane.
+    c [float]: rapporto tra le due larghezze delle due gaussiane.
+    k [float]: coefficiente della caduta esponenziale.
+    B0 [float]: fattore di normalizzazione, A/k corrisponde all'integrale su [0,inf] dell'esponenziale.
+    B1 [float]: Costante di offset.
+    """
+
+    g1 = gauss(x, mu, sigma, A1)
+    g2 = gauss(x, mu - delta, c * sigma, A2)
+    fondo = expo(x, k, B0) + B1 
+    return g1 + g2 + fondo
+
     
 
