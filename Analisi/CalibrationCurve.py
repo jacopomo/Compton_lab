@@ -254,5 +254,7 @@ def Calibration(path_files):
 
     return m, q, r2
 
+'''
 path = input(" --> Nome directory: ")
 Calibration(path)
+'''
