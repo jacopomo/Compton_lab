@@ -15,6 +15,7 @@ RCOL = 1 # Raggio collimatore [cm]
 L = 11 #Lunghezza collimatore [cm]
 SAACOLL = np.degrees(np.arctan(2/L)) # Semi-apertura angolare del collimatore [gradi]
 RP = 2.5 # Raggio plastico [cm]
+LP = 3 # Lunghezza plastico [cm]
 DSP = 1.5 # Distanza sorgente - plastico [cm]
 DBC = 47 # Distanza bersaglio - cristallo [cm]
 RC = 2.54 # Raggio del cristallo [cm]
@@ -37,11 +38,11 @@ THETA_MESH = np.linspace(THETA_MIN, THETA_MAX, 250) # Theta mesh
 E_ref = np.linspace(1, 2000, 100)  # 100 bins da 1 keV a 2000 keV
 E_ref = np.concatenate(([E1, E2], E_ref))  # Energie importanti
 
-ESOGLIA = 750 # Soglia del cristallo [keV]
-EBINMAX = 1250 # Massimo del binning [keV]
+ESOGLIA_C = 550 # Soglia del cristallo [keV]
+EBINMAX = 2000 # Massimo del binning [keV]
 NBINS = 80
 
-MAX_CML_TRIES = 5  # Maximum times to re-sample cml for escaping photons
+MAX_CML_TRIES = 500  # Maximum times to re-sample cml for escaping photons
 
 np.random.seed(42) # Seed
 
@@ -58,7 +59,9 @@ class Materiale:
 
     def _build_splines(self):
         """Metodo privato, leggi il file una volta"""
-        ph_E, sigma_c, sigma_pe, sigma_tot = np.loadtxt(f"./Montecarlo/Dati_materiali/{self.formula}.txt", skiprows=2, unpack=True)
+        base_dir = os.path.dirname(__file__)
+        filepath = os.path.join(base_dir, "Dati_materiali", f"{self.formula}.txt")
+        ph_E, sigma_c, sigma_pe, sigma_tot = np.loadtxt(filepath, skiprows=2, unpack=True)
         ph_E = ph_E * 1000  # MeV to keV
 
         self.sigma_c_spline  = CubicSpline(ph_E, sigma_c)
@@ -141,7 +144,7 @@ class Fotone:
         self.psi = np.radians(psi)
 
 
-    def calcola_int(self, superficie, debug_graph=False, scatter_compton=False):
+    def calcola_int(self, superficie, debug_graph=False):
         p = np.stack((self.px, self.py, self.pz), axis=-1)
         phi, psi = self.phi, self.psi
         centro = superficie.centro
@@ -149,10 +152,6 @@ class Fotone:
         
         dx, dy, dz = np.sin(psi), np.sin(phi)*np.cos(psi), np.cos(phi)*np.cos(psi)
         d = np.stack((dx, dy, dz), axis=-1)
-        
-        if scatter_compton:
-            scatter_angle = campiona_kn(THETA_MESH, self.energia, len(self.px))
-            d = direzione_scatter(d, scatter_angle)
         
         num, denom = (centro-p) @ normal, np.sum(d * normal, axis=-1)
 
@@ -164,32 +163,33 @@ class Fotone:
         
         forward = (~np.isnan(t)) & (t >= -1e-8)
         if not np.any(forward):
-            return None, None, None, None, None, None
+            return None, None, None, None, None, None, None
     
-        pts = p + np.expand_dims(t, axis=-1) * d
-        pts = pts[forward]
-        phi = phi[forward]
-        psi = psi[forward]
-        if scatter_compton:
-            scatter_angle = scatter_angle[forward]
+        pts_all = p + np.expand_dims(t, axis=-1) * d
+        idx_forward = np.where(forward)[0]
+        pts = pts_all[forward]
+        phi_f = phi[forward]
+        psi_f = psi[forward]
 
         d2 = np.sum((pts - centro)**2, axis=1)
         mask = d2 < superficie.raggio**2
-        if len(pts[mask])==0:
-            return None, None, None, None, None, None
+        if not np.any(mask):
+            return None, None, None, None, None, None, None
+
         xs, ys, zs = pts[mask].T
-        phi, psi = phi[mask].T, psi[mask].T
-        if scatter_compton:
-            scatter_angle = scatter_angle[mask].T
+        phi_sel = phi_f[mask]
+        psi_sel = psi_f[mask]
+        # select corresponding original indices to index energies
+        selected_indices = idx_forward[mask]
+        E_sel = self.energia[selected_indices]
 
         if debug_graph:
             fig = plt.figure(figsize=(12, 12))
             ax = fig.add_subplot(projection='3d')
-            ax.scatter(xs,ys,zs) 
+            ax.scatter(xs,ys,zs)
             plt.show()
-        if not scatter_compton:
-            scatter_angle = np.full(len(xs),None)
-        return xs,ys,zs, np.degrees(phi), np.degrees(psi), scatter_angle
+
+        return xs, ys, zs, np.degrees(phi_sel), np.degrees(psi_sel), E_sel
 
     def isinside(self, x,y,z, vol):
         """ Vede se il fotone sta dentro un solido
@@ -322,6 +322,7 @@ class Fotone:
                         else:
                             img = arr.copy()
                     frames.append(img.copy())
+            
             active_idx = np.where(active)[0]
             escaped = ~inside
             if np.any(escaped):
@@ -432,6 +433,142 @@ class Fotone:
                 print('Could not display slider for frames:', e)
 
         return E_depositata
+
+    def scatter_through_volume(self, volume, debug_graph=False, pause_time=0.6, max_iters=1000):
+        """Simulate Compton (and photoelectric) interactions inside a volume
+
+        This function updates photon energies and directions as they undergo
+        interactions inside `volume` (uses volume.cml). It returns the energy
+        deposited inside the volume for each input photon and the subset of
+        photons that exit the *front face* (z == volume.lunghezza). For those
+        that exit through the front face we return their intersection position
+        on the face and their outgoing directions.
+
+        Returns:
+            E_depositata: ndarray shape (N,) energy deposited inside volume
+            exits: dict with keys 'idx', 'x','y','z','phi','psi','E' for photons
+                   that exited through the front face. 'idx' are indices into
+                   the original photon arrays.
+        """
+        N = len(self.energia)
+        E = self.energia.copy()
+        E_depositata = np.zeros_like(E)
+
+        # positions and directions in local volume coordinates
+        c = volume.centro_sup_vicina
+        a = volume.angolo
+        x,y,z = self.px-c[0], self.py-c[1], self.pz-c[2]
+        # rotate coordinates by -a (same as scatter_inside)
+        y,z = ((y*np.cos(a))-(z*np.sin(a))), ((y*np.sin(a))+(z*np.cos(a)))
+        p = np.stack((x,y,z), axis=-1)
+
+        phi, psi = self.phi - a, self.psi
+        dx, dy, dz = np.sin(psi), np.sin(phi)*np.cos(psi), np.cos(phi)*np.cos(psi)
+        d = np.stack((dx, dy, dz), axis=-1)
+
+        active = np.ones(N, dtype=bool)
+        exited_front_idx = []
+        exited_front_pos = []
+        exited_front_dir = []
+        exited_front_energy = []
+
+        it = 0
+        while np.any(active) and it < max_iters:
+            it += 1
+            L, tipo = volume.cml(E[active])
+            new_p = p[active] + d[active] * L[:, None]
+            inside = self.isinside(new_p[:,0], new_p[:,1], new_p[:,2], volume)
+
+            active_idx = np.where(active)[0]
+
+            # For photons that would escape, check if they exit through the front face (z >= lunghezza)
+            escaped = ~inside
+            if np.any(escaped):
+                esc_idx_local = np.where(escaped)[0]
+                for j in esc_idx_local:
+                    global_idx = active_idx[j]
+                    p0 = p[global_idx]
+                    d0 = d[global_idx]
+                    L_j = L[j]
+                    # If direction has positive z component, compute intersection with plane z = lunghezza
+                    if d0[2] > 1e-12:
+                        t_plane = (volume.lunghezza - p0[2]) / d0[2]
+                        if t_plane >= 0 and t_plane <= L_j:
+                            # intersection point
+                            pt = p0 + d0 * t_plane
+                            # check radial within radius
+                            if (pt[0]**2 + pt[1]**2) <= (volume.raggio**2):
+                                # record exit at front face
+                                exited_front_idx.append(global_idx)
+                                # transform back to global coordinates (undo local translation/rotation)
+                                # inverse rotation by +a
+                                y_pt = (pt[1]*np.cos(a) + pt[2]*np.sin(a))
+                                z_pt = (-pt[1]*np.sin(a) + pt[2]*np.cos(a))
+                                x_pt = pt[0] + c[0]
+                                y_pt = y_pt + c[1]
+                                z_pt = z_pt + c[2]
+                                exited_front_pos.append((x_pt, y_pt, z_pt))
+                                # compute outgoing angles phi,psi from d0
+                                vec = d0 / np.linalg.norm(d0)
+                                psi_out = np.arcsin(vec[0])
+                                # handle phi via projection
+                                phi_out = np.arctan2(vec[1], vec[2])
+                                exited_front_dir.append((np.degrees(phi_out), np.degrees(psi_out)))
+                                exited_front_energy.append(E[global_idx])
+                                # mark photon as inactive (it left the volume)
+                                active[global_idx] = False
+                                continue
+                    # otherwise it escaped laterally or backward: mark deposit NaN and deactivate
+                    no_deposit = E_depositata[global_idx] == 0
+                    if no_deposit:
+                        E_depositata[global_idx] = np.nan
+                    active[global_idx] = False
+
+            # Now process those that are still inside after travelling L
+            inside_idx_local = np.where(inside)[0]
+            if len(inside_idx_local) == 0:
+                break
+
+            idx_inside_global = active_idx[inside_idx_local]
+            pe_mask = (tipo[inside] == "Fotoelettrico")
+            compton_mask = ~pe_mask
+
+            # Photoelectric: deposit all energy and stop
+            idx_pe = idx_inside_global[pe_mask]
+            if len(idx_pe) > 0:
+                E_depositata[idx_pe] += E[idx_pe]
+                E[idx_pe] = 0
+                active[idx_pe] = False
+
+            # Compton: update directions and energies, move to interaction point
+            idx_c = idx_inside_global[compton_mask]
+            if len(idx_c) > 0:
+                # compute scattering angles for compton interactions
+                scatter_angle = campiona_kn_array(THETA_MESH, E[idx_c])
+                # update directions
+                d[idx_c] = direzione_scatter(d[idx_c], scatter_angle)
+                # compute new positions at interaction points
+                # need new_p active mapping
+                new_p_active = new_p[inside]
+                new_p_compton = new_p_active[compton_mask]
+                p[idx_c] = new_p_compton
+                # compute new energies after compton
+                new_E = compton(E[idx_c], scatter_angle)
+                E_depositata[idx_c] += (E[idx_c] - new_E)
+                E[idx_c] = new_E
+
+        # Prepare exit dict
+        exits = {
+            'idx': np.array(exited_front_idx, dtype=int) if len(exited_front_idx)>0 else np.array([], dtype=int),
+            'x': np.array([p[0] for p in exited_front_pos]) if len(exited_front_pos)>0 else np.array([]),
+            'y': np.array([p[1] for p in exited_front_pos]) if len(exited_front_pos)>0 else np.array([]),
+            'z': np.array([p[2] for p in exited_front_pos]) if len(exited_front_pos)>0 else np.array([]),
+            'phi': np.array([d[0] for d in exited_front_dir]) if len(exited_front_dir)>0 else np.array([]),
+            'psi': np.array([d[1] for d in exited_front_dir]) if len(exited_front_dir)>0 else np.array([]),
+            'E': np.array(exited_front_energy) if len(exited_front_energy)>0 else np.array([]),
+        }
+
+        return E_depositata, exits
         
 ######## Funzioni ########
 
@@ -546,7 +683,7 @@ def compton(E, theta):
     """"" Calcola l'energia di un fotone entrante con energia E ed angolo theta
 
     Parametri:
-    E: Energia in ingresso del fotone
+    E: Energia in ingresso del fotone [keV]
     theta: angolo in ingresso (in radianti) del fotone
 
     Returns:
@@ -559,75 +696,97 @@ def mc(E, phi_cristallo=PHI):
     collimatore = Superficie(RCOL,(0,0,-DSP), 0)
     plastico    = Superficie(RP, (0,0,0), 0)
     cristallo   = Superficie(RC,(0,DBC*np.sin(np.radians(phi_cristallo)), DBC*np.cos(np.radians(phi_cristallo))), phi_cristallo)
+    C           = Materiale("C", 2.00)
+    PMT1        = Volume(C, RP, LP, (0,0,0), 0)
     NaI         = Materiale("NaI", 3.67)
     PMT2        = Volume(NaI, RC, LC, (0,DBC*np.sin(np.radians(phi_cristallo)), DBC*np.cos(np.radians(phi_cristallo))), phi_cristallo)
 
+    E = np.full(N_MC, E)
     ## Sorgente - collimatore
     xs, ys, zs = sorgente.pos_sul_piano_unif(N_MC, debug_graph=False) # Genera N punti uniformi sulla sorgente
     phiphi, psipsi = np.random.uniform(-SAACOLL, SAACOLL, len(xs)), np.random.uniform(-SAACOLL, SAACOLL, len(xs)) # Genera angoli uniformi
     f = Fotone(E, xs, ys, zs, phiphi, psipsi) # Genera fotoni 
-    xc, yc, zc, phis, psis, _ = f.calcola_int(collimatore, debug_graph=False) # Trova intersezione con collimatore
+    xc, yc, zc, phis, psis, E = f.calcola_int(collimatore, debug_graph=False) # Trova intersezione con collimatore
 
     # Collimatore - plastico
     f = Fotone(E, xc, yc, zc, phis, psis) # Fotoni sul collimatore con l'angolo da prima
-    xp, yp, zp, phip, psip, _ = f.calcola_int(plastico, debug_graph=False) # Trova intersezione con plastico
+    xp, yp, zp, phip, psip, E = f.calcola_int(plastico, debug_graph=False) # Trova intersezione con plastico
 
-    # Plastico - cristallo
     f = Fotone(E, xp, yp, zp, phip, psip)
-    xcr, ycr, zcr, phicr, psicr, scatter_angles =  f.calcola_int(cristallo, debug_graph=False, scatter_compton=True)
+    # Simulate interactions inside the plastic volume and get exit positions
+    _, exits = f.scatter_through_volume(PMT1, debug_graph=False)
+
+    # Initialize other return values
+    energie = np.array([])
+
+    # Build arrays for photons that exited through front face
+    if exits['idx'].size > 0:
+        # The exits dict contains positions in global coordinates and outgoing angles (deg)
+        x_exit = exits['x']
+        y_exit = exits['y']
+        z_exit = exits['z']
+        phi_exit = exits['phi']
+        psi_exit = exits['psi']
+        E_exit = exits['E']
+        # Create a Fotone for exited photons and intersect with the crystal
+        f_exit = Fotone(E_exit, x_exit, y_exit, z_exit, phi_exit, psi_exit)
+        xcr, ycr, zcr, phicr, psicr, energie = f_exit.calcola_int(cristallo, debug_graph=False)
+        
+        # If calcola_int returned all Nones (no hits on crystal), energie will be None
+        if energie is not None:
+            # Deposito d'energia dentro il cristallo
+            f = Fotone(energie, xcr, ycr, zcr, phicr, psicr)
+            energie = f.scatter_inside(PMT2, debug_graph=False, debug_save=False, save_gif_path=f'my_scatter_run{E}.gif', debug_slider=False)
+        else:
+            energie = np.array([])
+    else:
+        energie = np.array([])
+
+    return energie
+
+def plot_compton(phi_cristallo=PHI, all_peaks=False):
+    energie1 = mc(E1 ,phi_cristallo)
+    energie2 = mc(E2, phi_cristallo)
+    energie1 = energie1[energie1 > ESOGLIA_C]
+    energie2 = energie2[energie2 > ESOGLIA_C]
     
-    #plt.hist(np.degrees(scatter_angles), bins=np.linspace(-90,90,80), label=E, histtype="step")
 
-    energie = compton(E, scatter_angles)
-   
-    # Deposito d'energia dentro il cristallo
-    f = Fotone(energie, xcr, ycr, zcr, phicr, psicr)
-    energie = f.scatter_inside(PMT2, debug_graph=True, debug_save=True, save_gif_path='my_scatter_run.gif', debug_slider=True) 
-
-    return energie, scatter_angles
-
-def plot_compton(phi_cristallo=PHI, plot_scatter_angles=False, all_peaks=False):
-    energie1, scatter_angles1 = mc(E1 ,phi_cristallo)
-    energie2, scatter_angles2 = mc(E2, phi_cristallo)
-    if plot_scatter_angles:
-        angoli = np.concatenate((np.degrees(scatter_angles1),np.degrees(scatter_angles2)))
-        plt.figure(figsize=(12,7), dpi=100)
-        plt.hist(angoli, color="black", histtype="step", label=f"angoli di scattering [gradi]")
-        plt.axvline(np.mean(angoli), color="red", linestyle="--", label=f"Angolo medio: {np.mean(angoli)} gradi")
-        plt.title(f"Distribuzione degli angoli di scattering per il cristallo posto a {phi_cristallo} gradi")
-        plt.legend(loc="upper right")
-        file_path = os.path.join("Montecarlo\Simulazioni\Distribuzioni", f"simul_dist_{phi_cristallo}gradi.png")
-        plt.savefig(file_path)
-        plt.show()
-        pass
-
-    sommato=np.concatenate((energie1, energie2))
-    binss = np.linspace(ESOGLIA, EBINMAX, NBINS)
+    sommato=np.concatenate((energie1, energie2)) if (len(energie1) > 0 and len(energie2) > 0) else np.array([])
+    binss = np.linspace(ESOGLIA_C, EBINMAX, NBINS)
 
     plt.figure(figsize=(12,7), dpi=100)
     if all_peaks:
-        plt.hist(energie1, bins=binss, color="red", histtype="step", label=f"Picco del fotone di {round(E1,1)}keV", density=False)
-        plt.hist(energie2, bins=binss, color="blue", histtype="step", label=f"Picco del fotone di {round(E2,1)}keV", density=False)
-    plt.hist(sommato, bins=binss, color="black", histtype="step", label=f"Somma", density=False)
-    plt.axvline(compton(E1, np.mean(scatter_angles1)), color="red",  linestyle="--", label=f"Scattering medio: {round(np.mean(np.degrees(scatter_angles1)),1)} gradi, E={round(compton(E1, np.mean(scatter_angles1)),1)}keV")
-    plt.axvline(compton(E2, np.mean(scatter_angles2)), color="blue", linestyle="--", label=f"Scattering medio: {round(np.mean(np.degrees(scatter_angles2)),1)} gradi, E={round(compton(E2, np.mean(scatter_angles2)),1)}keV")
+        if len(energie1) > 0:
+            plt.hist(energie1, bins=binss, color="red", histtype="step", label=f"Picco del fotone di {round(E1,1)}keV", density=False)
+        if len(energie2) > 0:
+            plt.hist(energie2, bins=binss, color="blue", histtype="step", label=f"Picco del fotone di {round(E2,1)}keV", density=False)
+    if len(sommato) > 0:
+        plt.hist(sommato, bins=binss, color="black", histtype="step", label=f"Somma", density=False)
+    
+
     plt.title(f"Segnale simulato per il cristallo posto a {phi_cristallo} gradi")
     plt.legend(loc="upper right")
 
-    en1 = np.pad(energie1, (0, len(sommato) - len(energie1)), constant_values=np.nan)
-    en2 = np.pad(energie2, (0, len(sommato) - len(energie2)), constant_values=np.nan)
-    
-    file_path = os.path.join("Montecarlo\Simulazioni\Istogrammi", f"simul_picchi_{phi_cristallo}gradi.png")
-    plt.savefig(file_path)
+    if len(sommato) > 0:
+        en1 = np.pad(energie1, (0, len(sommato) - len(energie1)), constant_values=np.nan)
+        en2 = np.pad(energie2, (0, len(sommato) - len(energie2)), constant_values=np.nan)
+        
+        # Create output directories if they don't exist
+        os.makedirs(r'Montecarlo\Simulazioni\Istogrammi', exist_ok=True)
+        os.makedirs(r'Montecarlo\Simulazioni\CSV', exist_ok=True)
+        os.makedirs(r'Montecarlo\Simulazioni\Distribuzioni', exist_ok=True)
+        
+        file_path = os.path.join("Montecarlo", "Simulazioni", "Istogrammi", f"simul_picchi_{phi_cristallo}gradi.png")
+        plt.savefig(file_path)
 
-    file_path = os.path.join("Montecarlo\Simulazioni\CSV", f'simul_dati_{phi_cristallo}gradi.csv')
-    np.savetxt(file_path, np.column_stack((en1, en2, sommato)), delimiter=',', header="Picco 1, Picco2, Segnale combinato")
+        file_path = os.path.join("Montecarlo", "Simulazioni", "CSV", f'simul_dati_{phi_cristallo}gradi.csv')
+        np.savetxt(file_path, np.column_stack((en1, en2, sommato)), delimiter=',', header="Picco 1, Picco2, Segnale combinato")
     return sommato
 
 ######## Monte-Carlo ########
 if __name__ == '__main__':
     start = time.time()
-    plot_compton(phi_cristallo=30, plot_scatter_angles=False, all_peaks=False)
+    plot_compton(phi_cristallo=35, all_peaks=True)
     end = time.time()
     print(f'Tempo impiegato: {round(end - start,2)}s')
     plt.show()

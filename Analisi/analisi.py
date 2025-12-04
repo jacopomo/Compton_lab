@@ -20,17 +20,22 @@ import os
 gradi = input("A quanti gradi? -> ")
 if gradi == "15" or gradi =="20": 
     file = os.path.join("Dati\Measures", f"{gradi}deg_251125.dat")
+if gradi == "30": 
+    file = os.path.join("Dati\Measures", f"{gradi}deg_021225.dat")
+if gradi == "35": 
+    file = os.path.join("Dati\Measures", f"{gradi}deg_271125.dat")
 
 num_bins = 256
 binning = np.linspace(0,2000, num_bins)
 
 dat = np.loadtxt(file, dtype=int, unpack=True)
+
 bin_indices = np.arange(dat.size, dtype=int)
 unbinned = np.repeat(bin_indices, dat)
 
 plt.figure(figsize=(12,7), dpi=100)
 
-energie = (unbinned*0.24725)-3.891 ### Calibrazione presa "al volo"
+energie = (unbinned-2.892342129195413)*1.1*0.2347298873728735 ### Calibrazione presa "al volo"
 
 misure = plt.hist(energie, bins=binning, histtype='step', density=True, label="Segnale misurato", color="black")
 
