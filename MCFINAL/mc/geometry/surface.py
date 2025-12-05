@@ -1,5 +1,5 @@
 import numpy as np
-class Surface:
+class Disk:
     def __init__(self, center, radius, angle):
         self.center = center # x,y,z numpy array
         self.radius = radius # float
