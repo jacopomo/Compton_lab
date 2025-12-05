@@ -240,30 +240,30 @@ def Calibration(path_files):
     print(f"FORMULA: E [keV] = {m:.5f} * Canale + ({q:.3f})")
 
     # Grafico Finale
-    fig_final, ax_right = plt.subplots(figsize=(6, 4))
+    fig_final, ax_top = plt.subplots(figsize=(6, 4))
 
 
-    ax_right.errorbar(x_val, y_val, xerr=errori_ch, fmt='o', color='blue', label='Punti Sperimentali')
+    ax_top.errorbar(x_val, y_val, xerr=errori_ch, fmt='o', color='blue', label='Punti Sperimentali')
     x_line = np.linspace(0, max(x_val)*1.1, 100)
-    ax_right.plot(x_line, m*x_line + q, 'r-', label=f'Fit Lineare ($R^2$={r2:.5f})')
+    ax_top.plot(x_line, m*x_line + q, 'r-', label=f'Fit Lineare ($R^2$={r2:.5f})')
 
-    ax_right.set_xlabel("Canale")
-    ax_right.set_title(f"Curva di Calibrazione (5 Punti)\nE = {m:.4f}C + {q:.2f}")
-    ax_right.grid(True, linestyle='--', alpha=0.5)
-    ax_right.legend()
+    ax_top.set_ylabel("Energia [KeV]")
+    ax_top.set_title(f"Curva di Calibrazione (5 Punti)\nE = {m:.4f}C + {q:.2f}")
+    ax_top.grid(True, linestyle='--', alpha=0.5)
+    ax_top.legend()
     
-    divider = make_axes_locatable(ax_right)
-    ax_left = divider.append_axes("left", size="25%", pad=0.0, sharey=ax_right)
+    divider = make_axes_locatable(ax_top)
+    ax_bottom = divider.append_axes("bottom", size="25%", pad=0.0, sharex=ax_top)
     
-    res = (x_val - (y_val - q)/m)/errori_ch
-    ax_left.errorbar(res, y_val, xerr=1, fmt='o', color='blue', label='Residui normalizzati')
-    ax_left.axvline(0, linestyle='--')
-    ax_left.grid(True, linestyle='--', alpha=0.5)
-    ax_left.set_ylabel("Energia (keV)")
-    ax_left.set_xlabel("Residui Normalizzati")
+    res = (y_val - (x_val * m) - q)
+    ax_bottom.errorbar(x_val, res, fmt='o', color='blue', label='Residui')
+    ax_bottom.axhline(0, linestyle='--')
+    ax_bottom.grid(True, linestyle='--', alpha=0.5)
+    ax_bottom.set_xlabel("Canale [u.a.]")
+    ax_bottom.set_ylabel("Residui")
 
-    ax_right.tick_params(axis='y', labelbottom=False)
-    ax_left.tick_params(left=False)
+    ax_top.tick_params(axis='x', labelbottom=False)
+    ax_bottom.tick_params(top=False)
 
     plt.show()
 
