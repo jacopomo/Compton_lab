@@ -37,7 +37,7 @@ def gauss(x, mu, sigma, A):
     sigma [float]: larghezza.
     A [float]: corrisponde all'integrale su [-inf,inf].
     """
-    return A / (np.sqrt(2*pi) * sigma) * np.exp(-0.5 * ((x-mu)/sigma)**2)
+    return A * np.exp(-0.5 * ((x-mu)/sigma)**2)
 
 def emg(x, mu, sigma, tau, A):
     """

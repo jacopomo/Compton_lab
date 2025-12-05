@@ -240,21 +240,35 @@ def Calibration(path_files):
     print(f"FORMULA: E [keV] = {m:.5f} * Canale + ({q:.3f})")
 
     # Grafico Finale
-    plt.figure(figsize=(8, 6))
-    plt.errorbar(x_val, y_val, xerr=errori_ch, fmt='o', color='blue', label='Punti Sperimentali')
-    x_line = np.linspace(0, max(x_val)*1.1, 100)
-    plt.plot(x_line, m*x_line + q, 'r-', label=f'Fit Lineare ($R^2$={r2:.5f})')
+    fig_final, ax_right = plt.subplots(figsize=(6, 4))
 
-    plt.xlabel("Canale")
-    plt.ylabel("Energia (keV)")
-    plt.title(f"Curva di Calibrazione (5 Punti)\nE = {m:.4f}C + {q:.2f}")
-    plt.grid(True, linestyle='--', alpha=0.5)
-    plt.legend()
+
+    ax_right.errorbar(x_val, y_val, xerr=errori_ch, fmt='o', color='blue', label='Punti Sperimentali')
+    x_line = np.linspace(0, max(x_val)*1.1, 100)
+    ax_right.plot(x_line, m*x_line + q, 'r-', label=f'Fit Lineare ($R^2$={r2:.5f})')
+
+    ax_right.set_xlabel("Canale")
+    ax_right.set_title(f"Curva di Calibrazione (5 Punti)\nE = {m:.4f}C + {q:.2f}")
+    ax_right.grid(True, linestyle='--', alpha=0.5)
+    ax_right.legend()
+    
+    divider = make_axes_locatable(ax_right)
+    ax_left = divider.append_axes("left", size="25%", pad=0.0, sharey=ax_right)
+    
+    res = (x_val - (y_val - q)/m)/errori_ch
+    ax_left.errorbar(res, y_val, xerr=1, fmt='o', color='blue', label='Residui normalizzati')
+    ax_left.axvline(0, linestyle='--')
+    ax_left.grid(True, linestyle='--', alpha=0.5)
+    ax_left.set_ylabel("Energia (keV)")
+    ax_left.set_xlabel("Residui Normalizzati")
+
+    ax_right.tick_params(axis='y', labelbottom=False)
+    ax_left.tick_params(left=False)
+
     plt.show()
 
     return m, q, r2
 
-'''
+
 path = input(" --> Nome directory: ")
 Calibration(path)
-'''
