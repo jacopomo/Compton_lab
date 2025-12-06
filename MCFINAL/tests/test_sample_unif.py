@@ -1,14 +1,17 @@
 import numpy as np
+
 from mc.geometry.surface import Disk, Rectangle
+from mc.utils.math3d import unpack_stacked
 
-
-def test_disk_sample_unif_counts_bounds_and_mean_radial():
+def test_disk_sample_unif_and_unpack():
 	center = np.array([0.0, 0.0, 0.0])
 	radius = 1.0
 	angle = 0.0  # test the non-rotated case for simple geometric checks
 	d = Disk(center, radius, angle)
 	n = 10000
-	px, py, pz = d.sample_unif(n)
+	ps = d.sample_unif(n)
+
+	px, py, pz = unpack_stacked(ps)
 
 	# counts and shapes
 	assert len(px) == n
@@ -27,15 +30,17 @@ def test_disk_sample_unif_counts_bounds_and_mean_radial():
 	assert abs(mean_r - (2.0/3.0) * radius) < 0.02
 
 
-def test_rectangle_sample_unif_counts_and_bounds():
+def test_rectangle_sample_unif_and_unpack():
 	center = np.array([0.0, 0.0, 0.0])
 	length = 0.6
 	width = 0.4
 	angle = 0.0
 	rect = Rectangle(center, length, width, angle)
-	n = 5000
-	px, py, pz = rect.sample_unif(n)
+	n = 10000
+	ps = rect.sample_unif(n)
 
+	px, py, pz = unpack_stacked(ps)
+	
 	assert len(px) == n
 	assert len(py) == n
 	assert len(pz) == n

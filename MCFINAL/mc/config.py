@@ -36,4 +36,4 @@ NBINS = 80
 
 MAX_CML_TRIES = 500  # Maximum times to re-sample cml for escaping photons
 
-np.random.seed(42) # Seed
+#np.random.seed(42) # Seed
