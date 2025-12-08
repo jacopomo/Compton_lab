@@ -31,7 +31,7 @@ class Cylinder:
         x, y, z = unpack_stacked(points)
 
         r = np.sqrt(x**2+y**2)
-        print(r)
+        print(max(r))
         mask = (r <= self.radius) & (z <= self.length) & (z > -1e-9)
         if mask.shape == ():
             return bool(mask)
