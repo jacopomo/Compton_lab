@@ -31,7 +31,8 @@ class Cylinder:
         x, y, z = unpack_stacked(points)
 
         r = np.sqrt(x**2+y**2)
-        mask = (r < self.radius) & (z < self.length) & (z > -1e-9)
+        print(r)
+        mask = (r <= self.radius) & (z <= self.length) & (z > -1e-9)
         if mask.shape == ():
             return bool(mask)
         return mask
@@ -46,6 +47,14 @@ class Cylinder:
         Returns:
             nparray, nparray: (N,), (N,) distances until the volume is exited [cm], array of bools True = exited base
         """
+        points = np.asarray(points, dtype=float)
+        directions = np.asarray(directions, dtype=float)
+        N = points.shape[0]
+
+        # Basic sanity checks
+        if points.shape[1] != 3 or directions.shape[1] != 3:
+            raise ValueError("points and directions must be shaped (N,3)")
+    
         assert np.all(self.contains(points)), "All initial points must be inside the volume."
 
         points = points - self.center 
@@ -53,7 +62,7 @@ class Cylinder:
         directions = rotate_by_phi(directions, -self.angle)
 
         px, py, pz = unpack_stacked(points)
-        pz = pz + np.full(len(pz), 1e-9) # add some safe padding
+        pz = pz + np.full(len(pz), 1e-9) # shift to avoid self-intersection with z=0 plane
         dx, dy, dz = unpack_stacked(directions)
 
         def safe_div(numerator, denominator): # avoid division by zero (helper)
@@ -138,6 +147,14 @@ class RectPrism:
         Returns:
             nparray, nparray: (N,), (N,) distances until the volume is exited [cm], array of bools True = exited base
         """
+        points = np.asarray(points, dtype=float)
+        directions = np.asarray(directions, dtype=float)
+        N = points.shape[0]
+
+        # Basic sanity checks
+        if points.shape[1] != 3 or directions.shape[1] != 3:
+            raise ValueError("points and directions must be shaped (N,3)")
+
         H, W, L = self.height, self.width, self.length
 
         assert np.all(self.contains(points)), "All initial points must be inside the volume."
@@ -147,7 +164,7 @@ class RectPrism:
         directions = rotate_by_phi(directions, -self.angle)
 
         px, py, pz = unpack_stacked(points)
-        pz = pz + np.full(len(pz), 1e-9) # add some safe padding
+        pz = pz + np.full(len(pz), 1e-9) # shift to avoid self-intersection with z=0 plane
         dx, dy, dz = unpack_stacked(directions)
 
         def safe_div(numerator, denominator): # avoid division by zero (helper)

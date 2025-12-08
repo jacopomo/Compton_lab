@@ -4,24 +4,32 @@ import matplotlib.pyplot as plt
 from mc.utils.plotting import plot_photon_positions
 from mc.utils.math3d import unpack_stacked, generate_random_directions
 from mc.geometry.surface import Rectangle, Disk
+from mc.geometry.volume import RectPrism, Cylinder
 from mc.core.photon import Photons
 from mc.physics.kn_sampler import kn, build_kn_lut, sample_kn
-from mc.config import RE, E1, E2
+from mc.config import RE, E1, E2, RCOL, L
 
-n = 10
+n = 1000
 
-# Initialize photons at the source
+# Initialize photons at the source (infinite source = collimator head can be the source)
 
-source = Rectangle(np.array([0,0,-10]), 4.0, 4.0, np.radians(0))
+source = Disk(np.array([0,0,-L]), RCOL, 0)
 
 pos = source.sample_unif(n)
-dirs = generate_random_directions(n, (-1,1),(-1,1),(0,1))
+max_dxdy = np.sin(np.arctan(2*RCOL/L)) # geometry states there is no use generating larger angles
+
+dirs = generate_random_directions(n, (-max_dxdy,max_dxdy),(-max_dxdy,max_dxdy),(0,1)) # all interesting directions 
 energies = np.concatenate((np.random.normal(E1, 5, int(n/2)),np.random.normal(E2, 5, int(n/2))))
 
 photonpool = Photons(0)
 photonpool.append(pos, dirs, energies)
+plot_photon_positions(photonpool.pos)
 
 # Have them fly through the collimator, if they hit the walls force compton scatter with lead
+collimator = Cylinder(source, 11.0)
+photonpool.move_to_int(collimator)
+plot_photon_positions(photonpool.pos)
+
 # Intersect them with collimator exit
 
 # Have photons fly until plastic targer, initialize at its near end
