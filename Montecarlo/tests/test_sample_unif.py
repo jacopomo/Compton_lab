@@ -32,10 +32,10 @@ def test_disk_sample_unif_and_unpack():
 
 def test_rectangle_sample_unif_and_unpack():
 	center = np.array([0.0, 0.0, 0.0])
-	length = 0.6
-	width = 0.4
+	width = 0.6
+	height = 0.4
 	angle = 0.0
-	rect = Rectangle(center, length, width, angle)
+	rect = Rectangle(center, width, height, angle)
 	n = 10000
 	ps = rect.sample_unif(n)
 
@@ -51,7 +51,7 @@ def test_rectangle_sample_unif_and_unpack():
 	assert np.allclose(pz, center[2])
 
 	# bounds
-	assert px.min() >= center[0] - width/2 - 1e-12
-	assert px.max() <= center[0] + width/2 + 1e-12
-	assert py.min() >= center[1] - length/2 - 1e-12
-	assert py.max() <= center[1] + length/2 + 1e-12
+	assert px.min() >= center[0] - height - 1e-12
+	assert px.max() <= center[0] + height + 1e-12
+	assert py.min() >= center[1] - width - 1e-12
+	assert py.max() <= center[1] + width + 1e-12
