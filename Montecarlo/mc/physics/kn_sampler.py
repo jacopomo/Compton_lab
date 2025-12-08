@@ -18,12 +18,13 @@ def kn(E, theta):
     lr = compton(E, theta) / E
     return 0.5*(RE**2)*(lr)**2*(lr + (lr)**-1 - (np.sin(theta))**2)  
 
-def build_kn_lut(E_grid, theta_grid):
+def build_kn_lut(E_grid, theta_grid, savelut = True):
     """Builds the lookup tables for various energies on a theta mesh
 
     Args:
         E_grid (nparray): grid of energy values to evaluate the k-n formula on [keV]
         theta_grid (nparray): grid of angles to build the k-n pdf's [rad]
+        savelut (bool, optional): save the lookuptable or not, defaults to True
 
     Returns:
         nparray, nparray: values of pdf's and cdf's for each energy on the angular grid
@@ -34,11 +35,12 @@ def build_kn_lut(E_grid, theta_grid):
     for i, E in enumerate(E_grid):
         pdf_row = kn(E, theta_grid)
         
-        norm = np.trapz(pdf_row, theta_grid)
+        norm = np.trapezoid(pdf_row, theta_grid)
         pdf[i, :] = pdf_row / norm
 
     cdf = integrate.cumulative_trapezoid(pdf, theta_grid, axis=1, initial=0.0)
-    np.savez("kn_lut.npz", E_grid=E_grid, theta_grid=theta_grid, pdf=pdf, cdf=cdf)
+    if savelut:
+        np.savez("kn_lut.npz", E_grid=E_grid, theta_grid=theta_grid, pdf=pdf, cdf=cdf)
     return pdf, cdf
 
 def sample_kn(E_ph, E_grid, theta_grid, cdf, theta_low=0.0, theta_high=2*np.pi):
@@ -52,7 +54,7 @@ def sample_kn(E_ph, E_grid, theta_grid, cdf, theta_low=0.0, theta_high=2*np.pi):
         theta_high (float, optional): maximum scatter angle to sample from. Defaults to 2*np.pi
 
     Returns:
-        nparray: (N,) scattering angles sampled for each photon [rad]
+        nparray, nparray: (N,), (N,) scattering angles and fractional weights sampled for each photon [rad]
     """
     n = len(E_ph)
     theta_low = to_full_array(theta_low,n)
