@@ -5,17 +5,20 @@ import numpy as np
 from mc.utils.math3d import unpack_stacked, rotate_by_phi
 
 class Cylinder:
-    def __init__(self, disk, length):
+    def __init__(self, disk, length, material=None):
         """Class that handles the cylindrical geometry
 
         Args:
             disk (Disk): "near" face of the cylinder (low z)
-            height (float): extension along +z [cm]
+            length (float): extension along +z [cm]
+            material (Material, optional): material of which the volume is composed. Defaults to None.
         """
         self.center = disk.center   # nparray (3,) center of the "near" face
         self.radius = disk.radius   # instance of the disk class
         self.length = length        # extension along z
         self.angle = disk.angle     # angle about the vertical x axis (0 = head on)
+        if not material==None:    
+            self.material = material
     
     def contains(self, points):
         """Which points are contained in the cylinder
@@ -105,18 +108,21 @@ class Cylinder:
         return int_distance, exited_base
 
 class RectPrism:
-    def __init__(self, rectangle, length):
+    def __init__(self, rectangle, length, material=None):
         """Class that handles rectangular prism geometry
 
         Args:
             rectangle (Rectangle): "near" face of the rectangular prism (low z)
-            height (float): extension along +z [cm]
+            length (float): extension along +z [cm]
+            material (Material, optional): material of which the volume is composed. Defaults to None.
         """
         self.center = rectangle.center  # center of the "near" face
         self.width = rectangle.width    # semi-extension along y
         self.height = rectangle.height  # semi-extension along x
         self.length = length            # extension along z
         self.angle = rectangle.angle    # angle about the vertical x axis (0 = head on)
+        if not material==None:    
+            self.material = material
 
     def contains(self, points):
         """Which points are contained in the rectangular prism

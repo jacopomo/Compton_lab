@@ -6,9 +6,10 @@ N_MC = int(5e6) # Num samples (MASSIMO 5e7 SE NON VUOI FAR DIVENTARE IL TUO COMP
 RCOL = 1 # Raggio collimatore [cm]
 L = 11 #Lunghezza collimatore [cm]
 SAACOLL = np.degrees(np.arctan(2/L)) # Semi-apertura angolare del collimatore [gradi]
-RP = 2.5 # Raggio plastico [cm]
-LP = 3 # Lunghezza plastico [cm]
-DSP = 1.5 # Distanza sorgente - plastico [cm]
+HP = 1.5 # width plastic target [cm]
+WP = 2.5 # height plastic target [cm]
+LP = 3 # length plastic target [cm]
+DSP = 2 # Distanza sorgente - plastico [cm]
 DBC = 47 # Distanza bersaglio - cristallo [cm]
 RC = 2.54 # Raggio del cristallo [cm]
 LC = 5.08 # Lunghezza del cristallo [cm]
@@ -37,3 +38,4 @@ NBINS = 80
 MAX_CML_TRIES = 500  # Maximum times to re-sample cml for escaping photons
 
 #np.random.seed(42) # Seed
+
