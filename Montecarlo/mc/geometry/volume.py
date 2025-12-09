@@ -31,8 +31,7 @@ class Cylinder:
         x, y, z = unpack_stacked(points)
 
         r = np.sqrt(x**2+y**2)
-        print(max(r))
-        mask = (r <= self.radius) & (z <= self.length) & (z > -1e-9)
+        mask = (r <= self.radius + 1e-9) & (z <= self.length + 1e-9) & (z > -1e-9)
         if mask.shape == ():
             return bool(mask)
         return mask
@@ -61,8 +60,8 @@ class Cylinder:
         points = rotate_by_phi(points, -self.angle) # reference frame of the cylinder
         directions = rotate_by_phi(directions, -self.angle)
 
-        px, py, pz = unpack_stacked(points)
-        pz = pz + np.full(len(pz), 1e-9) # shift to avoid self-intersection with z=0 plane
+        px, py, pz = unpack_stacked(points) 
+        pz = pz + np.full(len(pz), 1e-9) # shift to avoid self-intersection 
         dx, dy, dz = unpack_stacked(directions)
 
         def safe_div(numerator, denominator): # avoid division by zero (helper)
@@ -78,7 +77,7 @@ class Cylinder:
         # This involves solving a quadratic equation for t: (px+dx*t)^2 + (py+dy*t)^2 = r^2
         # a*t^2 + b*t + c = 0
         a = dx**2 + dy**2
-        b = 2 * (px * dx) + (py * dy)
+        b = 2 * ((px * dx) + (py * dy))
         c = px**2 + py**2 - self.radius**2
 
         a = np.where(np.abs(a) > 1e-9, a, 1e-9)

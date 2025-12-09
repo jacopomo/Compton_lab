@@ -71,3 +71,18 @@ def generate_random_directions(n, xlim=(-1,1), ylim=(-1,1), zlim=(-1,1)):
     directions = np.stack((dx,dy,dz),axis=-1)
     directions = directions/np.linalg.norm(directions, axis=1, keepdims=True)
     return directions
+
+def lift_mask(local_mask, parent_mask):
+    """Bookkeeping helper function that projects a smaller mask into 
+    a larger parent mask
+
+    Args:
+        local_mask (nparray): smaller mask of len n
+        parent_mask (nparray): larger mask of len N
+
+    Returns:
+        nparray: len N mask 
+    """
+    out = np.zeros(len(parent_mask), dtype=bool)
+    out[parent_mask] = local_mask
+    return out

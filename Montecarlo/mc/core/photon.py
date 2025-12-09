@@ -66,8 +66,8 @@ class Photons:
             return
         
         distances, exit_base = volume.exit_distance(self.pos[idx], self.direc[idx])
-        self.pos[idx] = self.pos[idx] + distances[:, np.newaxis]*self.direc[idx]
-        assert np.all(volume.contains(self.pos[idx])), "Some photons moved outside collimator after intersection!"
+        self.pos[idx] = self.pos[idx] + 0.999*distances[:, np.newaxis]*self.direc[idx]
+        assert np.all(volume.contains(self.pos[idx])), "Some photons moved outside volume after intersection!"
         return exit_base
     
     def scatter_update_dirs(self, scatter_angles, mask=None, idx=None):
