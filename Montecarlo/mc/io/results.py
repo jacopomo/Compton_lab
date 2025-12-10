@@ -35,14 +35,14 @@ def get_results_dirs():
 def save_histogram(E, weights, phi, bins=80):
     hist_dir, _ = get_results_dirs()
 
-    fname = f"E_spectrum_{np.degrees(phi):.1f}deg.png"
+    fname = f"E_spectrum_{np.degrees(phi):.0f}deg.png"
     path = os.path.join(hist_dir, fname)
 
     plt.figure()
     plt.hist(E, bins=bins, histtype="step", weights=weights)
     plt.xlabel("Energy [keV]")
     plt.ylabel("Counts")
-    plt.title(f"Energy deposited ({np.degrees(phi):.1f}°)")
+    plt.title(f"Energy deposited ({int(round(np.degrees(phi),0))}°)")
     plt.tight_layout()
     plt.savefig(path, dpi=300)
     plt.close()
@@ -53,7 +53,7 @@ def save_histogram(E, weights, phi, bins=80):
 def save_csv(E_deposited, phi):
     _, csv_dir = get_results_dirs()
 
-    fname = f"E_deposited_{np.degrees(phi):.1f}deg.csv"
+    fname = f"E_deposited_{int(round(np.degrees(phi),0))}deg.csv"
     path = os.path.join(csv_dir, fname)
 
     np.savetxt(

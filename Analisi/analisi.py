@@ -1,51 +1,106 @@
+import argparse
+from pathlib import Path
+import sys
 import numpy as np
-import matplotlib.pyplot as plt
-import os
+import pandas as pd # Utilizzeremo pandas per un salvataggio CSV più pulito
 
-# Prendi un .dat file di misure reali
-# Converti conteggi .dat in misure di canale
-# Prendi una calibrazione (quella del giorno?)
-# Calibra canale -> energia
-# Rebinna seguendo un binning predifinito (lo stesso che userò nella simulazione)
+from CalibrationCurve import calibration
 
-# Se richesto, normalizza dividendo in maniera che il conteggio massimo è 1
+def find_paths_for_angle(angle_str: str) -> tuple[Path, Path]:
+    """
+    Trova i percorsi per il file dati e la cartella di calibrazione per un dato angolo.
+    
+    Restituisce:
+        Una tupla (data_file_path: Path, calibration_folder_path: Path)
+    """
+    
+    # Calcolo del percorso base (presupponendo che 'Analisi' sia accanto a 'Dati')
+    base_path = Path(__file__).parent.parent / 'Dati' / 'Angoli'
+    angle_dir_name = f"{angle_str}deg"
+    
+    target_dir = base_path / angle_dir_name
+    
+    if not target_dir.is_dir():
+        raise ValueError(f"Errore: Directory non trovata per l'angolo '{angle_str}'. Cercato in: {target_dir.resolve()}")
 
-# Plotta istogramma calibrato e rebinnato
-# Return i conteggi e errori poissoniani sui conteggi
+    file_pattern = f"{angle_dir_name}_*.dat"
+    data_files = list(target_dir.glob(file_pattern))
+    
+    if not data_files:
+        raise ValueError(f"Errore: Nessun file dati trovato con pattern '{file_pattern}' in {target_dir.resolve()}")
+    
+    if len(data_files) > 1:
+        print(f"Avviso: Trovati più file dati per {angle_str}deg. Verrà usato il primo trovato.")
 
-# Dopo questi conteggi verranno confrontati con quelli della simulazione (normalizzati)
+    data_file_path = data_files[0]
+    
+    calibration_folder_path = target_dir / 'Calibration'
+
+    if not calibration_folder_path.is_dir():
+        raise ValueError(f"Errore: Directory Calibration non trovata in: {calibration_folder_path.resolve()}")
+
+    return data_file_path, calibration_folder_path
 
 
+def save_energies_as_csv(energies: np.ndarray, angle_str: str):
+    """
+    Salva l'array di energie in un file CSV nella cartella Spettri_calibrati.
+    """
+    # Il percorso della cartella di destinazione si trova nella stessa directory dello script (Analisi)
+    output_dir = Path(__file__).parent / 'Analisi_angoli' / 'Spettri_calibrati'
+    output_dir.mkdir(parents=True, exist_ok=True) # Crea la cartella se non esiste
 
-gradi = input("A quanti gradi? -> ")
-if gradi == "15" or gradi =="20": 
-    file = os.path.join("Dati\Measures", f"{gradi}deg_251125.dat")
-if gradi == "30": 
-    file = os.path.join("Dati\Measures", f"{gradi}deg_021225.dat")
-if gradi == "35": 
-    file = os.path.join("Dati\Measures", f"{gradi}deg_271125.dat")
+    file_name = f"{angle_str}deg_calibrato.csv"
+    output_path = output_dir / file_name
 
-num_bins = 256
-binning = np.linspace(0,2000, num_bins)
+    # Utilizza pandas per salvare l'array come una singola colonna senza header o indice
+    # in modo che il file .csv contenga solo i valori delle energie.
+    series = pd.Series(energies, name="Energia [keV]")
+    series.to_csv(output_path, index=False, header=True)
 
-dat = np.loadtxt(file, dtype=int, unpack=True)
+    print(f"\nFile salvato con successo in: {output_path.resolve()}")
 
-bin_indices = np.arange(dat.size, dtype=int)
-unbinned = np.repeat(bin_indices, dat)
 
-plt.figure(figsize=(12,7), dpi=100)
+def main():
+    parser = argparse.ArgumentParser(description="Process data file for a specific angle.")
+    parser.add_argument('angle', type=str, help="The measurement angle to process (e.g., 0, 10, 30).")
+    args = parser.parse_args()
+    angle_input = args.angle
 
-energie = (unbinned-2.892342129195413)*1.1*0.2347298873728735 ### Calibrazione presa "al volo"
+    try:
+        data_file_path, cal_folder_path = find_paths_for_angle(angle_input)
+        
+        print(f"Trovato file dati: {data_file_path.resolve()}")
+        print(f"Trovata cartella calibrazione: {cal_folder_path.resolve()}")
 
-misure = plt.hist(energie, bins=binning, histtype='step', density=True, label="Segnale misurato", color="black")
+        # 1. Carica i dati grezzi (conteggi per canale)
+        dat = np.loadtxt(data_file_path, dtype=int, unpack=True)
+        
+        # 2. Converte i conteggi in una lista "unbinned" di canali individuali
+        bin_indices = np.arange(dat.size, dtype=int)
+        unbinned_channels = np.repeat(bin_indices, dat)
+        
+        # 3. Ottieni i coefficienti di calibrazione (m, q)
+        # Assicurati che la funzione calibration restituisca esattamente m, q e qualcos'altro
+        m, q, _ = calibration(cal_folder_path, vis=False) 
+        
+        # 4. Converti i canali in energie (E = m * canali + q, o come specificato dalla tua formula)
+        # La tua formula precedente era: (unbinned_channels * q) * m; ho assunto che m e q siano i coefficienti di una retta
+        # Modifica la riga seguente per adattarla alla logica esatta della tua funzione calibration()
+        unbinned_energies = (unbinned_channels * m) + q
+        
+        # 5. Salva i risultati in un CSV
+        save_energies_as_csv(unbinned_energies, angle_input)
 
-p1, p2, tot = np.loadtxt(os.path.join("Montecarlo\Simulazioni\CSV", f"simul_dati_{gradi}gradi.csv"), delimiter=",").T
-simul = plt.hist(tot, bins=binning, histtype='step', density=True, label="Segnale simulato", color="red")
+    except ValueError as e:
+        print(e)
+        sys.exit(1)
+    except FileNotFoundError:
+        print(f"Un componente del percorso non è stato trovato.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Si è verificato un errore inaspettato: {e}")
+        sys.exit(1)
 
-plt.title(f"Analisi dello spettro a {gradi} gradi")
-plt.xlabel(f'Energia [keV]')
-plt.ylabel('Conteggi')
-plt.legend()
-file_path = os.path.join("Dati\Measures", f"confronto_{gradi}deg.png")
-plt.savefig(file_path)
-plt.show()
+if __name__ == "__main__":
+    main()
