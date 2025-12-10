@@ -15,8 +15,12 @@ Montecarlo/
 |
 ├─ mc/                  # Python package containing the simulation modules
 │   ├─ core/
+|   |   ├─ photon.py        # Photon object handling
 │   │   └─ simulation.py    # Main simulation routines
 │   ├─ physics/
+|   |   |   └─ material_data/
+|   |   |       ├─ C.txt     # Cross sections for plastic target
+|   |   |       └─ NaI.txt   # Cross sections for crystal detector
 │   │   ├─ kn_sampler.py     # Klein-Nishina sampling
 │   │   ├─ compton.py        # Compton scattering physics
 │   │   └─ materials.py      # Material definitions
@@ -26,11 +30,10 @@ Montecarlo/
 │   ├─ utils/
 │   │   ├─ math3d.py         # Vector math utilities
 │   │   └─ plotting.py       # Plotting utilities
-│   └─ io/
-│       └─ results.py        # Functions to save histograms and CSVs
-|
+│   ├─ io/
+│   |   └─ results.py        # Functions to save histograms and CSVs
+|   ├─ config.py             # Global configuration (energies, grids, geometry)
 ├─ main.py               # Entry point for running the simulation
-├─ config.py             # Global configuration (energies, grids, geometry)
 ├─ requirements.txt      # Python dependencies
 └─ results/              # Folder created by the simulation if saving is enabled
     ├─ histograms/       # Histogram PNGs
