@@ -9,10 +9,10 @@ from mc.utils.math3d import generate_random_directions, lift_mask, unpack_stacke
 from mc.geometry.surface import Rectangle, Disk
 from mc.geometry.volume import RectPrism, Cylinder
 from mc.core.photon import Photons
-from mc.physics.kn_sampler import sample_kn, PDF, CDF, THETA_GRID, E_GRID
+from mc.physics.kn_sampler import sample_kn, PDF, CDF
 from mc.physics.compton import compton
 from mc.physics.materials import Material
-from mc.config import RE, E1, E2, RCOL, L, WP, LP, HP, DCP, DPC, LC, RC, N_MC, PHI
+from mc.config import RE, E1, E2, RCOL, L, WP, LP, HP, DCP, DPC, LC, RC, N_MC, PHI, MU_GRID, E_GRID
 def cmc():
     start = time.time()
     n = N_MC
@@ -38,7 +38,7 @@ def cmc():
     # If they hit the walls force compton scatter with lead
 
     hsm = ~exited_base_mask # hit side mask
-    angles, weights = sample_kn(photonpool.energy[hsm], E_GRID, THETA_GRID, CDF)
+    angles, weights = sample_kn(photonpool.energy[hsm], E_GRID, MU_GRID, CDF)
     photonpool.energy[hsm] = compton(photonpool.energy[hsm], angles)
     photonpool.weight[hsm] = weights * 0.21 # PLACEHOLDER 
     
@@ -122,7 +122,7 @@ def cmc():
     print(f"{alive_n} photons have hit the crystal ({round(alive_n*100/n,2)}% of original)")
 
     #plot_photon_positions(photonpool.pos)
-    show_E_crystalin_graph = True
+    show_E_crystalin_graph = False
     if show_E_crystalin_graph:
         plt.hist(photonpool.energy, bins=80, histtype="step", weights=photonpool.weight)
         plt.title(f"Energy spectrum of photons that enter the crystal ({round(np.degrees(PHI),1)} degrees)")
@@ -137,7 +137,7 @@ def cmc():
     # Force at least one scatter within the detector, pe or compton
     # When photons leave note their energy and calculate energy deposited
 
-    E_th_crystal = np.random.normal(750.0, 5.0, len(photonpool.alive))
+    E_th_crystal = np.random.normal(750.0, 50.0, len(photonpool.alive))
     E_initials = photonpool.energy.copy()
     E_finals = photonpool.force_first_then_transport(crystal, E_th=E_th_crystal)
     E_deposited = E_initials - E_finals

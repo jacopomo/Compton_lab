@@ -96,7 +96,13 @@ def _make_loglog_spline(x, y, kind="cubic", allow_extrapolate=True):
     cs = CubicSpline(lx, ly, extrapolate=allow_extrapolate)
     def f(E):
         E = np.asarray(E, dtype=float)
-        out = np.exp(cs(np.log(E)))
+        out = np.zeros_like(E, dtype=float)
+        positive = E > 0.0
+        if np.any(positive):
+            logE = np.log(E[positive])
+            out[positive] = np.exp(cs(logE))
+
+        out[~positive] = 0.0
         return out
     return f
 

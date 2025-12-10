@@ -16,7 +16,10 @@ def kn(E, theta):
         nparray: (n,) differential cross section [cm^2]
     """
     lr = compton(E, theta) / E
-    return 0.5*(RE**2)*(lr)**2*(lr + (lr)**-1 - (np.sin(theta))**2)  
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = 0.5 * (RE**2) * (lr**2) * (lr + 1.0/lr - np.sin(theta)**2)
+    out = np.where(np.isfinite(out), out, 0.0)
+    return np.clip(out, 0.0, None)  
 
 def build_kn_lut(E_grid, theta_grid, savelut = True):
     """Builds the lookup tables for various energies on a theta mesh
@@ -29,21 +32,46 @@ def build_kn_lut(E_grid, theta_grid, savelut = True):
     Returns:
         nparray, nparray: values of pdf's and cdf's for each energy on the angular grid
     """
+    theta_grid = np.asarray(theta_grid)
+    mu_grid = np.cos(theta_grid)
+    order = np.argsort(mu_grid)
+    mu_grid = mu_grid[order]
+    theta_grid = theta_grid[order]
+
+    mu_grid, uniq = np.unique(mu_grid, return_index=True)
+    theta_grid = theta_grid[uniq]
+
     nE = len(E_grid)
-    nmu = len(theta_grid)
+    nmu = len(mu_grid)
     pdf = np.empty((nE, nmu), dtype=float)
+
+    theta_grid = np.arccos(mu_grid)
+
     for i, E in enumerate(E_grid):
         pdf_row = kn(E, theta_grid)
         
-        norm = np.trapezoid(pdf_row, theta_grid)
-        pdf[i, :] = pdf_row / norm
+        norm = np.trapezoid(pdf_row, mu_grid)
+        if norm <= 0:
+            pdf[i, :] = 0.0
+        else:
+            pdf[i, :] = pdf_row / norm
+    
+    cdf = integrate.cumulative_trapezoid(pdf, mu_grid, axis=1, initial=0.0)
+    cdf_end = cdf[:, -1]
 
-    cdf = integrate.cumulative_trapezoid(pdf, theta_grid, axis=1, initial=0.0)
+    good = (cdf_end > 0) & np.isfinite(cdf_end)
+    cdf[good] /= cdf_end[good][:, None]
+    cdf[~good] = 0.0
+
+    # exact boundaries
+    cdf[:, 0] = 0.0
+    cdf[:, -1] = 1.0
+    
     if savelut:
-        np.savez("kn_lut.npz", E_grid=E_grid, theta_grid=theta_grid, pdf=pdf, cdf=cdf)
+        np.savez("kn_lut.npz", E_grid=E_grid, mu_grid=mu_grid, theta_grid=theta_grid, pdf=pdf, cdf=cdf)
     return pdf, cdf
 
-def sample_kn(E_ph, E_grid, theta_grid, cdf, theta_low=0.0, theta_high=np.pi):
+def sample_kn(E_ph, E_grid, mu_grid, cdf, theta_low=0.0, theta_high=np.pi):
     """Samples the Klein-Nishima formula for photons of different energies
     Args:
         E_ph (nparray): (N,) photon energies [keV]
@@ -60,9 +88,11 @@ def sample_kn(E_ph, E_grid, theta_grid, cdf, theta_low=0.0, theta_high=np.pi):
     theta_low = to_full_array(theta_low,n)
     theta_high = to_full_array(theta_high,n)
 
+    mu_low = np.cos(theta_high)
+    mu_high = np.cos(theta_low)
+
     u = np.random.uniform(0,1,n)
     idx = np.searchsorted(E_grid, E_ph)  # returns index where E_ph would be inserted
-    # correct indices at edges
     idx = np.clip(idx, 1, len(E_grid)-1)
 
     # map to nearest by comparing left/right distance:
@@ -74,21 +104,35 @@ def sample_kn(E_ph, E_grid, theta_grid, cdf, theta_low=0.0, theta_high=np.pi):
 
     theta_out = np.zeros(n)
     F_allowed_arr = np.zeros(n)
+
     unique_bins = np.unique(bins)
     for b in unique_bins:
         sel = (bins == b)
         cdf_b = cdf[b, :]
+        mu_b = mu_grid
+
         # compute cdf at mu limits
-        cdf_low = np.interp(theta_low[sel], theta_grid, cdf_b)   
-        cdf_high = np.interp(theta_high[sel], theta_grid, cdf_b)
+        cdf_low = np.interp(mu_low[sel], mu_b, cdf_b)   
+        cdf_high = np.interp(mu_high[sel], mu_b, cdf_b)
         F_allowed = cdf_high - cdf_low
-        # map u_base in [0,1] to [cdf_low, cdf_high]
-        u_sel = u[sel]
-        u_local = cdf_low + u_sel * F_allowed
-        # invert: get mu
-        theta_vals = np.interp(u_local, cdf_b, theta_grid)
-        theta_out[sel] = theta_vals
-        F_allowed_arr[sel] = F_allowed
+        
+        zero_mask = F_allowed <= 0
+        if np.any(zero_mask):
+            theta_out[sel][zero_mask] = np.pi
+            F_allowed_arr[sel][zero_mask] = 0.0
+            # continue on the rest
+
+        ok_idx = ~zero_mask
+        if np.any(ok_idx):
+            u_sel = u[sel]
+            # map u to local cdf segment
+            u_local = cdf_low + u_sel * F_allowed
+            # invert: find mu
+            mu_vals = np.interp(u_local, cdf_b, mu_b)
+            # convert to theta
+            theta_vals = np.arccos(mu_vals)
+            theta_out[sel] = theta_vals
+            F_allowed_arr[sel] = F_allowed
     return theta_out, F_allowed_arr
 
 PDF, CDF = build_kn_lut(E_GRID, THETA_GRID, savelut=True)

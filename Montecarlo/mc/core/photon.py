@@ -3,8 +3,9 @@
 import numpy as np
 
 from mc.physics.compton import compton, theta_min_threshold
-from mc.physics.kn_sampler import sample_kn, PDF, CDF, THETA_GRID, E_GRID
+from mc.physics.kn_sampler import sample_kn, PDF, CDF
 from mc.utils.math3d import rotate_by_phi, unpack_stacked
+from mc.config import E_GRID, MU_GRID
 
 class Photons:
     def __init__(self, N):
@@ -144,59 +145,69 @@ class Photons:
     def _force_first_interaction(self, volume, E_th, idx):
         mat = volume.material
 
-        E = self.energy[idx]
-        pos = self.pos[idx]
-        direc = self.direc[idx]
-        w = self.weight[idx]
+        E = self.energy[idx].astype(float).copy()
+        pos = self.pos[idx].copy()
+        direc = self.direc[idx].copy()
+        w = self.weight[idx].copy()
 
         active = E >= E_th
+
+        dead = ~active
+        if np.any(dead):
+            E[dead] = 0.0
+            w[dead] = 0.0
+
         if not np.any(active):
-            return E, pos, direc, w  # nothing to do
+            return E, pos, direc, w
 
-        idx_active = np.where(active)[0]
-
-        E_a = self.energy[idx_active]
-        pos_a = self.pos[idx_active]
-        direc_a = self.direc[idx_active]
-        w_a = self.weight[idx_active]
+        sel = np.nonzero(active)[0]
+        
+        E_a = E[sel].copy()
+        pos_a = pos[sel].copy()
+        direc_a = direc[sel].copy()
+        w_a = w[sel].copy()
 
         L_exit, _ = volume.exit_distance(pos_a, direc_a)
 
         mfp_c = mat.mfp_compton(E_a)
         mfp_pe = mat.mfp_pe(E_a)
+        mfp_c = np.where(mfp_c > 0, mfp_c, np.inf)
+        mfp_pe = np.where(mfp_pe > 0, mfp_pe, np.inf)
 
         Sigma_c = 1.0 / mfp_c
         Sigma_pe = 1.0 / mfp_pe
         Sigma_t = Sigma_c + Sigma_pe
 
         P_int = 1.0 - np.exp(-L_exit * Sigma_t)
-
-        u = np.random.random(len(E_a))
-        s = -np.log(1.0 - u * P_int) / Sigma_t
+        with np.errstate(divide="ignore", invalid="ignore"):
+            u = np.random.random(len(E_a))
+            safe_Sigma_t = np.where(Sigma_t > 0, Sigma_t, np.inf)
+            s = -np.log(1.0 - u * P_int) / safe_Sigma_t
+            s = np.where(np.isfinite(s), s, np.inf)
 
         pos_a += 0.999 * s[:, None] * direc_a
-
         w_a *= P_int
 
         u_type = np.random.random(len(E_a))
-        is_compton = u_type < (Sigma_c / Sigma_t)
+        is_compton = u_type < (Sigma_c / Sigma_t + 1e-20)
 
-        pe_idx = np.where(~is_compton)[0]
-        if pe_idx.size:
-            E_a[pe_idx] = 0.0
+        pe_local = np.where(~is_compton)[0]
+        if pe_local.size:
+            E_a[pe_local] = 0.0
 
-        co_idx = np.where(is_compton)[0]
-        if co_idx.size:
-            print(f"minimum scattering angle inside {volume.material.name} to have a signal: {round(np.degrees(theta_min_threshold(E_a[co_idx], E_th[idx_active[co_idx]]).min()),1)} deg\n")
-            angles, w_kn = sample_kn(E_a[co_idx], E_GRID, THETA_GRID, CDF,theta_low=theta_min_threshold(E_a[co_idx], E_th[idx_active[co_idx]]), theta_high=np.pi)
-            E_a[co_idx] = compton(E_a[co_idx], angles)
-            w_a[co_idx] *= w_kn
-            self.scatter_update_dirs(angles, idx=idx[idx_active[co_idx]])
+        co_local = np.where(is_compton)[0]
+        if co_local.size:
+            theta_min = theta_min_threshold(E_a[co_local], E_th[sel[co_local]])
+            print(f"minimum scattering angle inside {volume.material.name} to have a signal: {round(np.degrees(theta_min).max(),1)} deg\n")
+            angles, w_kn = sample_kn(E_a[co_local], E_GRID, MU_GRID, CDF,theta_low=theta_min, theta_high=np.pi)
+            E_a[co_local] = compton(E_a[co_local], angles)
+            w_a[co_local] *= w_kn
+            self.scatter_update_dirs(angles, idx=idx[sel[co_local]])
             
-        E[idx_active] = E_a
-        pos[idx_active] = pos_a
-        direc[idx_active] = direc_a
-        w[idx_active] = w_a
+        E[sel] = E_a
+        pos[sel] = pos_a
+        direc[sel] = direc_a
+        w[sel] = w_a
 
         return E, pos, direc, w
 
@@ -220,7 +231,7 @@ class Photons:
         w *= P_int
 
         print(f"minimum scattering angle inside {volume.material.name} to have a signal: {round(np.degrees(theta_min_threshold(E, E_th).min()),1)} deg\n")
-        angles, w_kn = sample_kn(E, E_GRID, THETA_GRID, CDF, theta_low=theta_min_threshold(E, E_th), theta_high=np.pi)
+        angles, w_kn = sample_kn(E, E_GRID, MU_GRID, CDF, theta_low=theta_min_threshold(E, E_th), theta_high=np.pi)
         w *= w_kn
         E[:] = compton(E, angles)
 
@@ -228,9 +239,7 @@ class Photons:
 
         return E, pos, direc, w
 
-    def _transport_until_exit_or_absorb(
-        self, volume, idx, E, pos, direc, max_steps
-    ):
+    def _transport_until_exit_or_absorb(self, volume, idx, E, pos, direc, max_steps=100):
         mat = volume.material
 
         alive = np.ones(len(E), dtype=bool)
@@ -251,11 +260,19 @@ class Photons:
             mfp_c = mat.mfp_compton(E_a)
             mfp_pe = mat.mfp_pe(E_a)
 
+            mfp_c = np.where(mfp_c > 0, mfp_c, np.inf)
+            mfp_pe = np.where(mfp_pe > 0, mfp_pe, np.inf)
+            
             Sigma_c = 1.0 / mfp_c
             Sigma_pe = 1.0 / mfp_pe
             Sigma_t = Sigma_c + Sigma_pe
 
-            s = -np.log(np.random.random(len(ia))) / Sigma_t
+            valid = Sigma_t > 0
+            s = np.empty_like(Sigma_t)
+            if np.any(valid):
+                s[valid] = -np.log(np.random.random(valid.sum())) / Sigma_t[valid]
+            s[~valid] = np.inf
+
             exits = s >= L_exit
 
             alive[ia[exits]] = False
@@ -266,17 +283,20 @@ class Photons:
 
             pos[ii] += 0.999 * s[~exits][:, None] * direc[ii]
 
+            safe_Sigma_t = Sigma_t.copy()
+            safe_Sigma_t = np.where(safe_Sigma_t > 0, safe_Sigma_t, 1.0)
             u = np.random.random(len(ii))
-            is_c = u < (Sigma_c[~exits] / Sigma_t[~exits])
+            is_c = u < (Sigma_c[~exits] / safe_Sigma_t[~exits])
 
             pe = ii[~is_c]
-            absorbed[pe] = True
-            alive[pe] = False
-            E[pe] = 0.0
+            if pe.size:
+                absorbed[pe] = True
+                alive[pe] = False
+                E[pe] = 0.0
 
             co = ii[is_c]
             if co.size:
-                angles, _ = sample_kn(E[co], E_GRID, THETA_GRID, CDF)
+                angles, _ = sample_kn(E[co], E_GRID, MU_GRID, CDF)
                 E[co] = compton(E[co], angles)
                 self.scatter_update_dirs(angles, idx=co)
 

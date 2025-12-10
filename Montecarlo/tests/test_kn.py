@@ -18,10 +18,11 @@ def test_kn():
 
 def test_build_kn_lut():
     E_grid = np.linspace(1,2000,50)
-    theta_grid = np.linspace(0,2*np.pi,100)
+    mu_grid = np.linspace(-1,1,1000)
+    theta_grid = np.arccos(mu_grid)
     pdf, cdf = build_kn_lut(E_grid, theta_grid, savelut=False)
 
-    assert np.all(np.isclose(np.min(cdf, axis=1), 0, atol=1e-9)) # the pdf's start at 0
+    assert np.all(np.isclose(np.min(cdf, axis=1), 0, atol=1e-9)) # the cdf's start at 0
     assert np.all(np.isclose(np.max(cdf, axis=1), 1, atol=1e-9)) # the cdf's end at 1
 
 def test_sample_kn():
@@ -29,11 +30,12 @@ def test_sample_kn():
     theta_low = np.radians(20)
     theta_high = np.radians(170)
     E_grid = np.linspace(1,2000,50)
-    theta_grid = np.linspace(0,2*np.pi,100)
+    mu_grid = np.linspace(-1,1,1000)
+    theta_grid = np.arccos(mu_grid)
     pdf, cdf = build_kn_lut(E_grid, theta_grid, savelut=False)
     
     E_ph = np.random.uniform(1,1000, n)
-    angles, Fs = sample_kn(E_ph, E_grid, theta_grid, cdf, theta_low, theta_high)
+    angles, Fs = sample_kn(E_ph, E_grid, mu_grid, cdf, theta_low, theta_high)
 
     assert min(angles) >= theta_low  # test angular cut-off
     assert max(angles) <= theta_high # test angular cut-off
