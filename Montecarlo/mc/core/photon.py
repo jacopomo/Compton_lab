@@ -141,6 +141,65 @@ class Photons:
             d * np.cos(scatter_angles)[:,None])
         self.direc[idx] = new
 
+    def _force_first_interaction(self, volume, E_th, idx):
+        mat = volume.material
+
+        E = self.energy[idx]
+        pos = self.pos[idx]
+        direc = self.direc[idx]
+        w = self.weight[idx]
+
+        active = E >= E_th
+        if not np.any(active):
+            return E, pos, direc, w  # nothing to do
+
+        idx_active = np.where(active)[0]
+
+        E_a = self.energy[idx_active]
+        pos_a = self.pos[idx_active]
+        direc_a = self.direc[idx_active]
+        w_a = self.weight[idx_active]
+
+        L_exit, _ = volume.exit_distance(pos_a, direc_a)
+
+        mfp_c = mat.mfp_compton(E_a)
+        mfp_pe = mat.mfp_pe(E_a)
+
+        Sigma_c = 1.0 / mfp_c
+        Sigma_pe = 1.0 / mfp_pe
+        Sigma_t = Sigma_c + Sigma_pe
+
+        P_int = 1.0 - np.exp(-L_exit * Sigma_t)
+
+        u = np.random.random(len(E_a))
+        s = -np.log(1.0 - u * P_int) / Sigma_t
+
+        pos_a += 0.999 * s[:, None] * direc_a
+
+        w_a *= P_int
+
+        u_type = np.random.random(len(E_a))
+        is_compton = u_type < (Sigma_c / Sigma_t)
+
+        pe_idx = np.where(~is_compton)[0]
+        if pe_idx.size:
+            E_a[pe_idx] = 0.0
+
+        co_idx = np.where(is_compton)[0]
+        if co_idx.size:
+            print(f"minimum scattering angle inside {volume.material.name} to have a signal: {round(np.degrees(theta_min_threshold(E_a[co_idx], E_th[idx_active[co_idx]]).min()),1)} deg\n")
+            angles, w_kn = sample_kn(E_a[co_idx], E_GRID, THETA_GRID, CDF,theta_low=theta_min_threshold(E_a[co_idx], E_th[idx_active[co_idx]]), theta_high=np.pi)
+            E_a[co_idx] = compton(E_a[co_idx], angles)
+            w_a[co_idx] *= w_kn
+            self.scatter_update_dirs(angles, idx=idx[idx_active[co_idx]])
+            
+        E[idx_active] = E_a
+        pos[idx_active] = pos_a
+        direc[idx_active] = direc_a
+        w[idx_active] = w_a
+
+        return E, pos, direc, w
+
     def _force_first_compton(self, volume, E_th, idx):
         mat = volume.material
 
@@ -241,11 +300,9 @@ class Photons:
         if idx.size == 0:
             return np.array([])
 
-        E, pos, direc, w = self._force_first_compton(volume, E_th, idx)
+        E, pos, direc, w = self._force_first_interaction(volume, E_th, idx)
 
-        E, alive = self._transport_until_exit_or_absorb(
-            volume, idx, E, pos, direc, max_steps
-        )
+        E, alive = self._transport_until_exit_or_absorb(volume, idx, E, pos, direc, max_steps)
 
         self.energy[idx] = E
         self.pos[idx] = pos
@@ -253,7 +310,7 @@ class Photons:
         self.alive[idx] = alive
 
         return E
-    
+
     def moveto_int_disk(self, disk, mask=None, idx=None):
 
         if (mask is not None) and (idx is not None):
