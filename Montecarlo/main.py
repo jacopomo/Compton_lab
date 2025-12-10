@@ -1,6 +1,6 @@
 # main.py
 
-from mc.core.simulation import mc
+from mc.core.simulation import cmc
 
 if __name__ == "__main__":
-    mc()
+    cmc()

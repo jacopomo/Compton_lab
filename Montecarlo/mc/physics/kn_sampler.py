@@ -2,7 +2,7 @@ import numpy as np
 import scipy.integrate as integrate
 
 from mc.physics.compton import compton
-from mc.config import RE, E1, E2
+from mc.config import RE, E1, E2, E_GRID, THETA_GRID
 from mc.utils.math3d import to_full_array
 
 def kn(E, theta):
@@ -91,7 +91,4 @@ def sample_kn(E_ph, E_grid, theta_grid, cdf, theta_low=0.0, theta_high=np.pi):
         F_allowed_arr[sel] = F_allowed
     return theta_out, F_allowed_arr
 
-
-E_GRID = np.linspace(1,E2+50,4*(1332+50))
-THETA_GRID=np.linspace(0, np.pi, 720)
 PDF, CDF = build_kn_lut(E_GRID, THETA_GRID, savelut=True)

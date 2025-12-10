@@ -2,8 +2,9 @@
 
 import numpy as np
 
-from mc.physics.compton import compton
+from mc.physics.compton import compton, theta_min_threshold
 from mc.physics.kn_sampler import sample_kn, PDF, CDF, THETA_GRID, E_GRID
+from mc.utils.math3d import rotate_by_phi, unpack_stacked
 
 class Photons:
     def __init__(self, N):
@@ -48,6 +49,41 @@ class Photons:
         self.weight = self.weight[keep]
         self.alive = np.ones(len(self.energy), dtype=bool)
 
+    def split(self, n):
+        assert type(n) == int, "n must be an int"
+        if n < 1:
+            raise ValueError("n must be >= 1")
+        if n == 1:
+            return
+
+        # --- divide weights of existing photons ---
+        self.weight /= n
+
+        # --- duplicate photons n-1 times ---
+        pos_new   = np.repeat(self.pos,   n - 1, axis=0)
+        direc_new = np.repeat(self.direc, n - 1, axis=0)
+        energy_new = np.repeat(self.energy, n - 1)
+        weight_new = np.repeat(self.weight, n - 1)
+        alive_new  = np.repeat(self.alive,  n - 1)
+
+        # --- append ---
+        self.append(
+            pos=pos_new,
+            direc=direc_new,
+            energy=energy_new,
+            weight=weight_new,
+            alive=alive_new
+        )
+
+    def _resolve_idx(self, mask, idx):
+        if (mask is not None) and (idx is not None):
+            raise ValueError("Provide only one of mask or idx")
+        if mask is not None:
+            return np.where(mask)[0]
+        if idx is not None:
+            return idx
+        return np.where(self.alive)[0]
+
     def move_to_int(self, volume, mask=None, idx=None):
         """Moves photons to their intersections with a volume.
         Only one of a mask or indexes must be passed, or neither to operate on all
@@ -63,20 +99,17 @@ class Photons:
         Returns:
             nparray: (N,) array of bools, True = exited base
         """
-        if (mask is not None) and (idx is not None):
-            raise ValueError("Provide only one of mask or idx")
-        
-        if mask is not None:
-            idx = np.where(mask)[0]
-        elif idx is None:
-            idx = np.where(self.alive)[0]
-        
+        idx = self._resolve_idx(mask, idx)
         if idx.size == 0:
             return
         
         distances, exit_base = volume.exit_distance(self.pos[idx], self.direc[idx])
         self.pos[idx] = self.pos[idx] + 0.999*distances[:, np.newaxis]*self.direc[idx]
-        assert np.all(volume.contains(self.pos[idx])), "Some photons moved outside volume after intersection!"
+        inside = volume.contains(self.pos[idx])
+
+        bad = ~inside
+        if np.any(bad):
+            self.alive[idx[bad]] = False        
         return exit_base
     
     def scatter_update_dirs(self, scatter_angles, mask=None, idx=None):
@@ -88,14 +121,8 @@ class Photons:
             mask (nparray, optional): mask for which photons to operate on. Defaults to None.
             idx (nparray, optional): indexes of which photons to operate on. Defaults to None.
         """
-        if (mask is not None) and (idx is not None):
-            raise ValueError("Provide only one of mask or idx")
-        
-        if mask is not None:
-            idx = np.where(mask)[0]
-        elif idx is None:
-            idx = np.where(self.alive)[0]
-        
+        idx = self._resolve_idx(mask, idx)
+
         if idx.size == 0:
             return
 
@@ -114,7 +141,120 @@ class Photons:
             d * np.cos(scatter_angles)[:,None])
         self.direc[idx] = new
 
-    def force_one_scatter_moveto(self, volume, mask=None, idx=None):
+    def _force_first_compton(self, volume, E_th, idx):
+        mat = volume.material
+
+        E = self.energy[idx]
+        pos = self.pos[idx]
+        direc = self.direc[idx]
+        w = self.weight[idx]
+
+        L_exit, _ = volume.exit_distance(pos, direc)
+        mfp = mat.mfp_compton(E)
+
+        P_int = 1.0 - np.exp(-L_exit / mfp)
+
+        u = np.random.random(len(E))
+        s = -np.log(1.0 - u * P_int) * mfp
+
+        pos += 0.999 * s[:, None] * direc
+        w *= P_int
+
+        print(f"minimum scattering angle inside {volume.material.name} to have a signal: {round(np.degrees(theta_min_threshold(E, E_th).min()),1)} deg\n")
+        angles, w_kn = sample_kn(E, E_GRID, THETA_GRID, CDF, theta_low=theta_min_threshold(E, E_th), theta_high=np.pi)
+        w *= w_kn
+        E[:] = compton(E, angles)
+
+        self.scatter_update_dirs(angles, idx=idx)
+
+        return E, pos, direc, w
+
+    def _transport_until_exit_or_absorb(
+        self, volume, idx, E, pos, direc, max_steps
+    ):
+        mat = volume.material
+
+        alive = np.ones(len(E), dtype=bool)
+        absorbed = np.zeros(len(E), dtype=bool)
+
+        for _ in range(max_steps):
+            if not np.any(alive):
+                break
+
+            ia = np.where(alive)[0]
+
+            pos_a = pos[ia]
+            dir_a = direc[ia]
+            E_a = E[ia]
+
+            L_exit, _ = volume.exit_distance(pos_a, dir_a)
+
+            mfp_c = mat.mfp_compton(E_a)
+            mfp_pe = mat.mfp_pe(E_a)
+
+            Sigma_c = 1.0 / mfp_c
+            Sigma_pe = 1.0 / mfp_pe
+            Sigma_t = Sigma_c + Sigma_pe
+
+            s = -np.log(np.random.random(len(ia))) / Sigma_t
+            exits = s >= L_exit
+
+            alive[ia[exits]] = False
+
+            ii = ia[~exits]
+            if ii.size == 0:
+                continue
+
+            pos[ii] += 0.999 * s[~exits][:, None] * direc[ii]
+
+            u = np.random.random(len(ii))
+            is_c = u < (Sigma_c[~exits] / Sigma_t[~exits])
+
+            pe = ii[~is_c]
+            absorbed[pe] = True
+            alive[pe] = False
+            E[pe] = 0.0
+
+            co = ii[is_c]
+            if co.size:
+                angles, _ = sample_kn(E[co], E_GRID, THETA_GRID, CDF)
+                E[co] = compton(E[co], angles)
+                self.scatter_update_dirs(angles, idx=co)
+
+        return E, alive & (~absorbed)
+
+    def force_one_scatter_moveto(self, volume, E_th, mask=None, idx=None):
+        idx = self._resolve_idx(mask, idx)
+        if idx.size == 0:
+            return
+
+        E, pos, direc, w = self._force_first_compton(volume, E_th, idx)
+
+        self.energy[idx] = E
+        self.pos[idx] = pos
+        self.weight[idx] = w
+
+        return self.move_to_int(volume, idx=idx)
+    
+    def force_first_then_transport(self, volume, E_th, mask=None, idx=None, max_steps=100):
+        idx = self._resolve_idx(mask, idx)
+        if idx.size == 0:
+            return np.array([])
+
+        E, pos, direc, w = self._force_first_compton(volume, E_th, idx)
+
+        E, alive = self._transport_until_exit_or_absorb(
+            volume, idx, E, pos, direc, max_steps
+        )
+
+        self.energy[idx] = E
+        self.pos[idx] = pos
+        self.weight[idx] = w
+        self.alive[idx] = alive
+
+        return E
+    
+    def moveto_int_disk(self, disk, mask=None, idx=None):
 
         if (mask is not None) and (idx is not None):
             raise ValueError("Provide only one of mask or idx")
@@ -124,65 +264,95 @@ class Photons:
         elif idx is None:
             idx = np.where(self.alive)[0]
 
+        N = len(self.energy)
+        hit_mask = np.zeros(N, dtype=bool)
+
         if idx.size == 0:
-            return
+            return hit_mask
 
-        mat = volume.material
-        if mat is None:
-            raise AssertionError("Volume must have a 'material' attribute")
+        pos = rotate_by_phi(self.pos[idx] - disk.center, -disk.angle) 
+        direc = rotate_by_phi(self.direc[idx], -disk.angle)
 
-        # Energies and directions for selected photons (local arrays)
-        E_sel = self.energy[idx].astype(float)        # (M,)
-        pos_sel = self.pos[idx]                       # (M,3)
-        dir_sel = self.direc[idx]                     # (M,3)
+        px, py, pz = unpack_stacked(pos) 
+        dx, dy, dz = unpack_stacked(direc)
 
-        L_sel, _ = volume.exit_distance(pos_sel, dir_sel)
+        def safe_div(numerator, denominator): # avoid division by zero (helper)
+            with np.errstate(divide='ignore'):
+                div = np.where(np.abs(denominator) > 1e-9, numerator / denominator, np.nan)
+            return div 
 
-        # macroscopic total (1/cm) at energies E_sel
-        Sigma_tot = 1 / mat.mfp_compton(E_sel)    # vectorized
+        t = safe_div(-pz,dz)
 
-        # probability to interact at least once inside L
-        P_int = 1.0 - np.exp(-Sigma_tot * L_sel)   # (M,)
+        forward = (~np.isnan(t)) & (t >= 0.0)
+        if not np.any(forward):
+            return hit_mask
 
-        # skip photons with essentially zero interaction probability
-        valid_mask = P_int > 0.0
-        if not np.all(valid_mask):
-            keep_idx = idx[valid_mask]
-            self.alive[~keep_idx] = False
-        else:
-            keep_idx = idx
+        t = t[forward]
+        idx_fwd = idx[forward]
 
-        if keep_idx.size == 0:
-            return
+        pts = pos[forward] + (t[:, None] * direc[forward])
 
-        # Redefine arrays limited to valid indices
-        rel = np.nonzero(valid_mask)[0]  # positions inside E_sel arrays
-        E_v = E_sel[rel].copy()
-        pos_v = pos_sel[rel].copy()
-        dir_v = dir_sel[rel].copy()
-        L_v = L_sel[rel].copy()
-        Sigma_v = Sigma_tot[rel].copy()
-        P_v = P_int[rel].copy()
-        global_idx_v = idx[rel]   # global indices in the pool
+        d2 = pts[:,0]**2 + pts[:,1]**2
+        inside = d2 <= disk.radius**2
+        if not np.any(inside):
+            return hit_mask
 
-        M = len(global_idx_v)
+        idx_hit = idx_fwd[inside]
+        pts = rotate_by_phi(pts, disk.angle) + disk.center # bring back to original coords
+        self.pos[idx_hit] = pts[inside]
 
-        # --- sample collision distance s from truncated exponential (vectorized) ---
-        # s = -1/Sigma * ln(1 - u*(1 - exp(-Sigma*L)))
-        u = np.random.random(M)
-        exp_term = np.exp(-Sigma_v * L_v)
-        # guard against numerical issues when Sigma_v is very small
-        # if Sigma_v==0 would have been filtered by valid_mask
-        s = -np.log(1.0 - u * (1.0 - exp_term)) / Sigma_v  # (M,)
+        hit_mask[idx_hit] = True
 
-        # move photons to the sampled collision points (in place)
-        self.pos[global_idx_v] = pos_v + (0.999 * s[:, None] * dir_v)
+        return hit_mask
 
-        # multiply weights by P_int (likelihood ratio) to correct for forced collision
-        self.weight[global_idx_v] *= P_v
+    def moveto_int_rect(self, rect, mask=None, idx=None):
 
-        angles, _ = sample_kn(self.energy[global_idx_v], E_GRID, THETA_GRID, CDF)
-        self.energy[global_idx_v] = compton(self.energy[global_idx_v], angles)
-        self.scatter_update_dirs(angles, idx=global_idx_v)
-        exit_base = self.move_to_int(volume, idx=global_idx_v)
-        return exit_base 
+        if (mask is not None) and (idx is not None):
+            raise ValueError("Provide only one of mask or idx")
+
+        if mask is not None:
+            idx = np.where(mask)[0]
+        elif idx is None:
+            idx = np.where(self.alive)[0]
+
+        N = len(self.energy)
+        hit_mask = np.zeros(N, dtype=bool)
+
+        if idx.size == 0:
+            return hit_mask
+
+        pos = rotate_by_phi(self.pos[idx] - rect.center, -rect.angle) 
+        direc = rotate_by_phi(self.direc[idx], -rect.angle)
+
+        px, py, pz = unpack_stacked(pos) 
+        dx, dy, dz = unpack_stacked(direc)
+
+        def safe_div(numerator, denominator): # avoid division by zero (helper)
+            with np.errstate(divide='ignore'):
+                div = np.where(np.abs(denominator) > 1e-9, numerator / denominator, np.nan)
+            return div 
+
+        t = safe_div(-pz,dz)
+
+        forward = (~np.isnan(t)) & (t >= 0.0)
+        if not np.any(forward):
+            return hit_mask
+
+        t = t[forward]
+        idx_fwd = idx[forward]
+
+        pts = pos[forward] + (t[:, None] * direc[forward])
+
+        x, y, _ = unpack_stacked(pts)
+        inside = (np.abs(x) < rect.height) & (np.abs(y) < rect.width)
+
+        if not np.any(inside):
+            return hit_mask
+
+        idx_hit = idx_fwd[inside]
+        pts = rotate_by_phi(pts, rect.angle) + rect.center # bring back to original coords
+        self.pos[idx_hit] = pts[inside]
+
+        hit_mask[idx_hit] = True
+
+        return hit_mask

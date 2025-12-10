@@ -16,6 +16,7 @@ class Disk:
         self.center = center # x,y,z numpy array
         self.radius = radius # float
         self.angle = angle   # angle about the vertical x axis (0 = head on)
+        self.normal = rotate_by_phi(np.array([0,0,1]), self.angle)
 
     def sample_unif(self, n):
         """Generates n points uniformly on the surface of the disk
@@ -50,7 +51,8 @@ class Rectangle:
         self.width = width      # semi-extension along y
         self.height = height    # semi-extension along x
         self.angle = angle      # angle about the vertical x axis (0 = head on)
-    
+        self.normal = rotate_by_phi(np.array([0,0,1]), self.angle)
+
     def sample_unif(self, n):
         """Generates n points uniformly on the rectangular surface
 
@@ -69,7 +71,3 @@ class Rectangle:
         points = rotate_by_phi(np.stack((px,py,pz), axis=-1), self.angle)
 
         return points + self.center
-
-
-# intersect(ray_origin, ray_direction)
-# returns the coordinates of the intersection with the surface or None None None if it does not
