@@ -198,7 +198,6 @@ class Photons:
         co_local = np.where(is_compton)[0]
         if co_local.size:
             theta_min = theta_min_threshold(E_a[co_local], E_th[sel[co_local]])
-            print(f"minimum scattering angle inside {volume.material.name} to have a signal: {round(np.degrees(theta_min).max(),1)} deg\n")
             angles, w_kn = sample_kn(E_a[co_local], E_GRID, MU_GRID, CDF,theta_low=theta_min, theta_high=np.pi)
             E_a[co_local] = compton(E_a[co_local], angles)
             w_a[co_local] *= w_kn
@@ -230,7 +229,6 @@ class Photons:
         pos += 0.999 * s[:, None] * direc
         w *= P_int
 
-        print(f"minimum scattering angle inside {volume.material.name} to have a signal: {round(np.degrees(theta_min_threshold(E, E_th).min()),1)} deg\n")
         angles, w_kn = sample_kn(E, E_GRID, MU_GRID, CDF, theta_low=theta_min_threshold(E, E_th), theta_high=np.pi)
         w *= w_kn
         E[:] = compton(E, angles)

@@ -1,3 +1,5 @@
+# mc/physics/kn_sampler.py
+
 import numpy as np
 import scipy.integrate as integrate
 
@@ -66,7 +68,7 @@ def build_kn_lut(E_grid, theta_grid, savelut = True):
     # exact boundaries
     cdf[:, 0] = 0.0
     cdf[:, -1] = 1.0
-    
+
     if savelut:
         np.savez("kn_lut.npz", E_grid=E_grid, mu_grid=mu_grid, theta_grid=theta_grid, pdf=pdf, cdf=cdf)
     return pdf, cdf

@@ -15,7 +15,7 @@ DCP = 2 # distance collimator exit - target [cm]
 DPC = 47 # distance plastic target - crystal detector [cm]
 RC = 2.54 # radius of the crystal detector [cm]
 LC = 5.08 # length of the crystal detector [cm]
-PHI = np.radians(20.0) # angle of the crystal detector - default [cm]
+PHI = np.radians(0.0) # angle of the crystal detector - default [cm]
 
 ### Physics
 ME = 511 # mass of electron [keV]
@@ -27,5 +27,6 @@ E_GRID = np.linspace(1,E2+50,4*(1332+50))
 MU_GRID = np.linspace(-1.0, 1.0, 1000)
 THETA_GRID=np.arccos(MU_GRID)
 
-#np.random.seed(42) # Seed
-N_MC = int(1e6) # number of MC samples
+np.random.seed(42) # eed
+N_MC = int(1e6) # number of default MC samples 
+SAVE_RESULTS = False # save results or not default value

@@ -12,10 +12,10 @@ from mc.core.photon import Photons
 from mc.physics.kn_sampler import sample_kn, PDF, CDF
 from mc.physics.compton import compton
 from mc.physics.materials import Material
-from mc.config import RE, E1, E2, RCOL, L, WP, LP, HP, DCP, DPC, LC, RC, N_MC, PHI, MU_GRID, E_GRID
-def cmc():
+from mc.io.results import save_csv, save_histogram
+from mc.config import RE, E1, E2, RCOL, L, WP, LP, HP, DCP, DPC, LC, RC, MU_GRID, E_GRID
+def cmc(n, phi, save):
     start = time.time()
-    n = N_MC
 
     # Initialize photons at the source (infinite source = collimator head can be the source)
     source = Disk(np.array([0,0,-L]), RCOL, 0)
@@ -111,7 +111,7 @@ def cmc():
     # Fly until intersection with crystal detector, note their energies
     R = DCP + LP + DPC
     NaI = Material("NaI")
-    cryface = Disk(np.array([0, R*np.sin(PHI), R*np.cos(PHI)]), RC, PHI)
+    cryface = Disk(np.array([0, R*np.sin(phi), R*np.cos(phi)]), RC, phi)
     crystal = Cylinder(cryface, LC, material=NaI)
     hit_crystal_mask = photonpool.moveto_int_disk(cryface)
 
@@ -125,7 +125,7 @@ def cmc():
     show_E_crystalin_graph = False
     if show_E_crystalin_graph:
         plt.hist(photonpool.energy, bins=80, histtype="step", weights=photonpool.weight)
-        plt.title(f"Energy spectrum of photons that enter the crystal ({round(np.degrees(PHI),1)} degrees)")
+        plt.title(f"Energy spectrum of photons that enter the crystal ({round(np.degrees(phi),1)} degrees)")
         plt.xlabel("Energy [keV]")
         plt.ylabel("Counts")
         plt.show()
@@ -145,12 +145,15 @@ def cmc():
     print(f"{analyzed_n} photons have been analyzed ({round(analyzed_n*100/n,2)}% of original)")
 
     end = time.time()
-    print("\n--------")
-    print(f'Tempo impiegato: {round(end - start,2)}s')
+    print("-------------------------------------------------------------\n")
+    print(f'Runtime: {round(end - start,2)}s')
 
     plt.hist(E_deposited, bins=80, histtype="step", weights=photonpool.weight)
-    plt.title(f"Energy deposited in the crystal ({round(np.degrees(PHI),1)} degrees)")
+    plt.title(f"Energy deposited in the crystal ({round(np.degrees(phi),1)} degrees)")
     plt.xlabel("Energy [keV]")
     plt.ylabel("Counts")
     plt.show()
 
+    if save:
+        save_histogram(E_deposited, photonpool.weight, phi)
+        save_csv(E_deposited, phi)
