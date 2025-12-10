@@ -38,11 +38,16 @@ Montecarlo/
 
 How to Run
 ----------
+
 1. Ensure all dependencies from `requirements.txt` are installed.
+```bash
    pip install -r requirements.txt
+```
 
 2. Run the simulation from the command line:
+```python
    python main.py -n 10000 -deg 15 -s
+```
 
    Arguments:
    - -n / --num_photons : Number of photons to simulate.
