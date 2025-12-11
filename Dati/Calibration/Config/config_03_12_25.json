@@ -1,0 +1,43 @@
+{
+    "commento": "Configurazione Calibrazione: Am + Na(511) + Cs + Co, [A, mu, sigma, B0, k, B1]",
+    "data": "02_12_25",
+    "print": 0,
+    "show": 0,
+    "sorgenti": [
+        {
+            "nome": "Americio-241",
+            "file": "Am241.dat",
+            "energia": [55.56, 59.54],
+            "fit or not": [0, 1],
+            "finestra": [138, 400],
+            "resize_factor": 1,
+            "guess": [580, 210, 24, 5891, 243, 24, 261, 0.00001, 250],
+            "special fit": "double_gauss_exp"
+        },
+        {
+            "nome": "Sodio-22 (Annichilazione)",
+            "file": "Na22.dat",
+            "energia": [511.0],
+            "finestra": [1750, 2450],
+            "resize_factor": 16,
+            "guess": [75, 2200, 78, 40, 0.001, 10]
+        },
+        {
+            "nome": "Cesio-137",
+            "file": "Cs137.dat",
+            "energia": [661.7],
+            "finestra": [2290, 3250],
+            "resize_factor": 8,
+            "guess": [437, 2842, 85, 150, 0.0008, 15]
+        },
+        {
+            "nome": "Cobalto-60",
+            "file": "Co60.dat",
+            "energia": [1173.2, 1332.5],
+            "finestra": [4240, 6070],
+            "resize_factor": 8,
+            "guess": [452, 4769, 131, 452, 5409, 131, 10000, 0.001, 7],
+            "special fit": "double_gauss_exp"
+        }
+    ]
+}
