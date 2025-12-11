@@ -85,7 +85,7 @@ def cmc(n, phi, save):
     plastic = RectPrism(pface, LP+0.1, material=C)
     #plot_photon_positions(photonpool.pos) # Where they exit the plastic
 
-    E_th_plastic = np.random.normal(85.0, 5.0, len(photonpool.alive))
+    E_th_plastic = np.random.normal(175.0, 5.0, len(photonpool.alive))
     exit_base_mask = photonpool.force_one_scatter_moveto(plastic, E_th=E_th_plastic)
     exit_front_mask = photonpool.pos[:,2] > DCP-0.1+LP-1e-3
     hit_plastic_front_mask = exit_base_mask & exit_front_mask
@@ -95,7 +95,7 @@ def cmc(n, phi, save):
     print(f"{alive_n} photons have exited the front face of the plastic ({round(alive_n*100/n,2)}% of original)")
     #plot_photon_positions(photonpool.pos)
 
-    show_E_plastic_graph = False
+    show_E_plastic_graph = True
     if show_E_plastic_graph:
         plt.hist(photonpool.energy, bins=80, histtype="step", weights=photonpool.weight)
         plt.title("Energy spectrum of photons that exit the plastic")
@@ -136,24 +136,26 @@ def cmc(n, phi, save):
 
     # Force at least one scatter within the detector, pe or compton
     # When photons leave note their energy and calculate energy deposited
-
+    analyzed_n = photonpool.alive.sum()
     E_th_crystal = np.random.normal(750.0, 50.0, len(photonpool.alive))
-    E_initials = photonpool.energy.copy()
-    E_finals = photonpool.force_first_then_transport(crystal, E_th=E_th_crystal)
-    E_deposited = E_initials - E_finals
-    analyzed_n = len(E_deposited) 
+    E_deposited = photonpool.force_first_then_transport(crystal, E_th=E_th_crystal)
+    
+    alive_mask = photonpool.alive # photons who passed the threshold
+    E_deposited = E_deposited[alive_mask]
+    weightss = photonpool.weight[alive_mask]
+ 
     print(f"{analyzed_n} photons have been analyzed ({round(analyzed_n*100/n,2)}% of original)")
+    print(f"{len(E_deposited)} photons surpassed the threshold and were seen ({round(len(E_deposited)*100/n,2)}% of original)")
 
     end = time.time()
     print("-------------------------------------------------------------\n")
     print(f'Runtime: {round(end - start,2)}s')
-
-    plt.hist(E_deposited, bins=80, histtype="step", weights=photonpool.weight)
+    plt.hist(E_deposited, bins=80, histtype="step", weights=weightss)
     plt.title(f"Energy deposited in the crystal ({round(np.degrees(phi),1)} degrees)")
     plt.xlabel("Energy [keV]")
     plt.ylabel("Counts")
     plt.show()
 
     if save:
-        save_histogram(E_deposited, photonpool.weight, phi)
+        save_histogram(E_deposited, weightss, phi)
         save_csv(E_deposited, phi)

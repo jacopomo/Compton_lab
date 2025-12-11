@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from mc.physics.compton import compton, theta_min_threshold
+from mc.physics.compton import compton
 from mc.physics.kn_sampler import sample_kn, PDF, CDF
 from mc.utils.math3d import rotate_by_phi, unpack_stacked
 from mc.config import E_GRID, MU_GRID
@@ -113,15 +113,16 @@ class Photons:
             self.alive[idx[bad]] = False        
         return exit_base
     
-    def scatter_update_dirs(self, scatter_angles, mask=None, idx=None):
+    def scatter_update_dirs(self, scatter_mus, mask=None, idx=None):
         """Updates photon directions by sampling a random azimuth around
         original direction and shifting by an angle in that direction
         
         Args:
-            scatter_angles (nparray): (N,) scattering angles 
+            scatter_mus (nparray): (N,) cosine of scattering angles 
             mask (nparray, optional): mask for which photons to operate on. Defaults to None.
             idx (nparray, optional): indexes of which photons to operate on. Defaults to None.
         """
+        assert max(np.abs(scatter_mus)) <=1, "invalid mus"
         idx = self._resolve_idx(mask, idx)
 
         if idx.size == 0:
@@ -136,10 +137,10 @@ class Photons:
         
         v = np.cross(d, u)
 
-        delta = np.random.uniform(-np.pi, np.pi, len(scatter_angles))
-        new = (u * (np.sin(scatter_angles) * np.cos(delta))[:,None] +
-            v * (np.sin(scatter_angles) * np.sin(delta))[:,None] +
-            d * np.cos(scatter_angles)[:,None])
+        delta = np.random.uniform(-np.pi, np.pi, len(scatter_mus))
+        new = (u * (np.sqrt(1 - scatter_mus**2) * np.cos(delta))[:,None] +
+            v * (np.sqrt(1 - scatter_mus**2) * np.sin(delta))[:,None] +
+            d * scatter_mus[:,None])
         self.direc[idx] = new
 
     def _force_first_interaction(self, volume, E_th, idx):
@@ -197,11 +198,10 @@ class Photons:
 
         co_local = np.where(is_compton)[0]
         if co_local.size:
-            theta_min = theta_min_threshold(E_a[co_local], E_th[sel[co_local]])
-            angles, w_kn = sample_kn(E_a[co_local], E_GRID, MU_GRID, CDF,theta_low=theta_min, theta_high=np.pi)
-            E_a[co_local] = compton(E_a[co_local], angles)
+            mus, w_kn = sample_kn(E_a[co_local], E_GRID, MU_GRID, CDF)
+            E_a[co_local] = compton(E_a[co_local], mus)
             w_a[co_local] *= w_kn
-            self.scatter_update_dirs(angles, idx=idx[sel[co_local]])
+            self.scatter_update_dirs(mus, idx=idx[sel[co_local]])
             
         E[sel] = E_a
         pos[sel] = pos_a
@@ -229,11 +229,11 @@ class Photons:
         pos += 0.999 * s[:, None] * direc
         w *= P_int
 
-        angles, w_kn = sample_kn(E, E_GRID, MU_GRID, CDF, theta_low=theta_min_threshold(E, E_th), theta_high=np.pi)
+        mus, w_kn = sample_kn(E, E_GRID, MU_GRID, CDF)
         w *= w_kn
-        E[:] = compton(E, angles)
+        E[:] = compton(E, mus)
 
-        self.scatter_update_dirs(angles, idx=idx)
+        self.scatter_update_dirs(mus, idx=idx)
 
         return E, pos, direc, w
 
@@ -294,9 +294,9 @@ class Photons:
 
             co = ii[is_c]
             if co.size:
-                angles, _ = sample_kn(E[co], E_GRID, MU_GRID, CDF)
-                E[co] = compton(E[co], angles)
-                self.scatter_update_dirs(angles, idx=co)
+                mus, _ = sample_kn(E[co], E_GRID, MU_GRID, CDF)
+                E[co] = compton(E[co], mus)
+                self.scatter_update_dirs(mus, idx=co)
 
         return E, alive & (~absorbed)
 
@@ -318,16 +318,20 @@ class Photons:
         if idx.size == 0:
             return np.array([])
 
+        E_initial = self.energy[idx].copy()
+
         E, pos, direc, w = self._force_first_interaction(volume, E_th, idx)
 
-        E, alive = self._transport_until_exit_or_absorb(volume, idx, E, pos, direc, max_steps)
+        E, _ = self._transport_until_exit_or_absorb(volume, idx, E, pos, direc, max_steps)
 
         self.energy[idx] = E
         self.pos[idx] = pos
         self.weight[idx] = w
-        self.alive[idx] = alive
+        energy_deposited = E_initial-E
+        small_deposit = energy_deposited < E_th
+        self.alive[idx[small_deposit]] = False
 
-        return E
+        return energy_deposited
 
     def moveto_int_disk(self, disk, mask=None, idx=None):
 

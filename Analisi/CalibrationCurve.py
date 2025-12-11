@@ -140,9 +140,9 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
         return None, None
 
 
-def Calibration(path_files):
+def calibration(path_files, vis=False):
     # --- 3. LETTURA DATI E CONFIGURAZIONE ---
-    file_config = path_files + r"/config_calibration.json"
+    file_config = path_files / "config_calibration.json"
 
     if not os.path.exists(file_config):
         print(f"ERRORE: Devi creare il file '{file_config}'!")
@@ -156,7 +156,8 @@ def Calibration(path_files):
     enable_print = bool(config_globale["print"])
     enable_show = bool(config_globale["show"])
 
-    print(f"--- AVVIO CALIBRAZIONE AUTOMATICA ---")
+    if vis:
+        print(f"--- AVVIO CALIBRAZIONE AUTOMATICA ---")
 
     # --- 4. CICLO DI ANALISI ---
     punti_ch = np.array([])
@@ -171,7 +172,7 @@ def Calibration(path_files):
         
         # Caricamento (solo se non già in memoria)
         if nome_file not in cache_dati:
-            path = path_files + "/" + nome_file
+            path = path_files / nome_file
             if not os.path.exists(path):
                 print(f"ATTENZIONE: File '{path}' non trovato. Salto {sorgente['nome']}.")
                 continue
@@ -192,7 +193,7 @@ def Calibration(path_files):
         centers, counts = cache_dati[nome_file]
         
         # Fit
-        mu, err = esegui_fit(centers, counts, sorgente, printing=enable_print, visualizzare=enable_show)
+        mu, err = esegui_fit(centers, counts, sorgente, printing=vis, visualizzare=vis)
         
         if mu is not None:
             punti_ch = np.concatenate((punti_ch, mu))
@@ -225,50 +226,51 @@ def Calibration(path_files):
 
     res = linregress(x_val, y_val)
     m, q, r2 = res.slope, res.intercept, res.rvalue**2
-
-    print("\n" + "="*40)
-    print(" RISULTATI CALIBRAZIONE COMPLETA")
-    print("="*40)
-    for c, e, n in zip(x_val, y_val, nomi_souce):
-        print(f" Canale {c:.2f} -> {e:.2f} keV    {n}")
-
-    print("-" * 40)
-    print(f"Pendenza (Guadagno) m: {m:.5f} keV/Canale")
-    print(f"Offset (Intercetta) q: {q:.3f} keV")
-    print(f"Linearità (R^2):       {r2:.6f}")
-    print("-" * 40)
-    print(f"FORMULA: E [keV] = {m:.5f} * Canale + ({q:.3f})")
-
-    # Grafico Finale
-    fig_final, ax_top = plt.subplots(figsize=(6, 4))
-
-
-    ax_top.errorbar(x_val, y_val, xerr=errori_ch, fmt='o', color='blue', label='Punti Sperimentali')
-    x_line = np.linspace(0, max(x_val)*1.1, 100)
-    ax_top.plot(x_line, m*x_line + q, 'r-', label=f'Fit Lineare ($R^2$={r2:.5f})')
-
-    ax_top.set_ylabel("Energia [KeV]")
-    ax_top.set_title(f"Curva di Calibrazione (5 Punti)\nE = {m:.4f}C + {q:.2f}")
-    ax_top.grid(True, linestyle='--', alpha=0.5)
-    ax_top.legend()
     
-    divider = make_axes_locatable(ax_top)
-    ax_bottom = divider.append_axes("bottom", size="25%", pad=0.0, sharex=ax_top)
-    
-    res = (y_val - (x_val * m) - q)
-    ax_bottom.errorbar(x_val, res, fmt='o', color='blue', label='Residui')
-    ax_bottom.axhline(0, linestyle='--')
-    ax_bottom.grid(True, linestyle='--', alpha=0.5)
-    ax_bottom.set_xlabel("Canale [u.a.]")
-    ax_bottom.set_ylabel("Residui")
+    if vis:
+        print("\n" + "="*40)
+        print(" RISULTATI CALIBRAZIONE COMPLETA")
+        print("="*40)
+        for c, e, n in zip(x_val, y_val, nomi_souce):
+            print(f" Canale {c:.2f} -> {e:.2f} keV    {n}")
 
-    ax_top.tick_params(axis='x', labelbottom=False)
-    ax_bottom.tick_params(top=False)
+        print("-" * 40)
+        print(f"Pendenza (Guadagno) m: {m:.5f} keV/Canale")
+        print(f"Offset (Intercetta) q: {q:.3f} keV")
+        print(f"Linearità (R^2):       {r2:.6f}")
+        print("-" * 40)
+        print(f"FORMULA: E [keV] = {m:.5f} * Canale + ({q:.3f})")
 
-    plt.show()
+        # Grafico Finale
+        fig_final, ax_top = plt.subplots(figsize=(6, 4))
+
+
+        ax_top.errorbar(x_val, y_val, xerr=errori_ch, fmt='o', color='blue', label='Punti Sperimentali')
+        x_line = np.linspace(0, max(x_val)*1.1, 100)
+        ax_top.plot(x_line, m*x_line + q, 'r-', label=f'Fit Lineare ($R^2$={r2:.5f})')
+
+        ax_top.set_ylabel("Energia [KeV]")
+        ax_top.set_title(f"Curva di Calibrazione (5 Punti)\nE = {m:.4f}C + {q:.2f}")
+        ax_top.grid(True, linestyle='--', alpha=0.5)
+        ax_top.legend()
+        
+        divider = make_axes_locatable(ax_top)
+        ax_bottom = divider.append_axes("bottom", size="25%", pad=0.0, sharex=ax_top)
+        
+        res = (y_val - (x_val * m) - q)
+        ax_bottom.errorbar(x_val, res, fmt='o', color='blue', label='Residui')
+        ax_bottom.axhline(0, linestyle='--')
+        ax_bottom.grid(True, linestyle='--', alpha=0.5)
+        ax_bottom.set_xlabel("Canale [u.a.]")
+        ax_bottom.set_ylabel("Residui")
+
+        ax_top.tick_params(axis='x', labelbottom=False)
+        ax_bottom.tick_params(top=False)
+
+        plt.show()
 
     return m, q, r2
 
-
-path = input(" --> Nome directory: ")
-Calibration(path)
+if __name__ == "__main__":
+    path = input(" --> Nome directory: ")
+    calibration(path, vis=True)

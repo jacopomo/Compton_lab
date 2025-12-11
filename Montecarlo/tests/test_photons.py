@@ -18,7 +18,7 @@ def test_scatter_update_dirs():
 
     assert np.allclose(np.linalg.norm(ps.direc, axis=1), np.ones(n), rtol=1e-9, atol=1e-9)
 
-    ps.scatter_update_dirs(np.random.uniform(0,np.pi, n)) # scatter and see if direction vectors are still unitary
+    ps.scatter_update_dirs(np.random.uniform(-1,1, n)) # scatter and see if direction vectors are still unitary
 
     assert np.max(ps.direc) <= 1
     assert np.max(ps.direc) >= 0
