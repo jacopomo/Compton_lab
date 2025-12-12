@@ -97,7 +97,7 @@ def cmc(n, phi, save):
     print(f"{alive_n} photons have exited the front face of the plastic ({round(alive_n*100/n,2)}% of original)")
     #plot_photon_positions(photonpool.pos)
 
-    show_E_plastic_graph = False
+    show_E_plastic_graph = True
     if show_E_plastic_graph:
         plt.hist(photonpool.energy, bins=80, histtype="step", weights=photonpool.weight)
         plt.title("Energy spectrum of photons that exit the plastic")
