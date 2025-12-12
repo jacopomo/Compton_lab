@@ -28,6 +28,8 @@ def cmc(n, phi, save):
 
     photonpool = Photons(0)
     photonpool.append(pos, dirs, energies)
+
+    #plot_photon_positions(photonpool.pos)
     print(f"{n} photons initialized at the source!")
 
     # Have them fly through the collimator
@@ -57,6 +59,7 @@ def cmc(n, phi, save):
     alive_n = photonpool.alive.sum() 
     print(f"{alive_n} photons have exited the collimator ({round(alive_n*100/n,2)}% of original)")
 
+    #plot_photon_positions(photonpool.pos)
     show_E_collimator_graph = False
     if show_E_collimator_graph:
         plt.hist(photonpool.energy, bins=80, histtype="step", weights=photonpool.weight)
@@ -83,9 +86,8 @@ def cmc(n, phi, save):
     C = Material("C")
     pface = Rectangle(np.array([0,0,DCP-0.1]), WP, HP, 0)
     plastic = RectPrism(pface, LP+0.1, material=C)
-    #plot_photon_positions(photonpool.pos) # Where they exit the plastic
 
-    E_th_plastic = np.random.normal(175.0, 5.0, len(photonpool.alive))
+    E_th_plastic = np.random.normal(150.0, 5.0, len(photonpool.alive))
     exit_base_mask = photonpool.force_one_scatter_moveto(plastic, E_th=E_th_plastic)
     exit_front_mask = photonpool.pos[:,2] > DCP-0.1+LP-1e-3
     hit_plastic_front_mask = exit_base_mask & exit_front_mask
@@ -95,7 +97,7 @@ def cmc(n, phi, save):
     print(f"{alive_n} photons have exited the front face of the plastic ({round(alive_n*100/n,2)}% of original)")
     #plot_photon_positions(photonpool.pos)
 
-    show_E_plastic_graph = True
+    show_E_plastic_graph = False
     if show_E_plastic_graph:
         plt.hist(photonpool.energy, bins=80, histtype="step", weights=photonpool.weight)
         plt.title("Energy spectrum of photons that exit the plastic")
@@ -159,3 +161,14 @@ def cmc(n, phi, save):
     if save:
         save_histogram(E_deposited, weightss, phi)
         save_csv(E_deposited, phi)
+
+
+def debustibus():
+    n=1000000
+    mus, _ = sample_kn(np.full(n,1000), E_GRID, MU_GRID, CDF)
+    Es = np.full(n, 1173)
+    Efins = compton(Es, mus)
+    plt.hist(mus, bins=50)
+    plt.show()
+    plt.hist(Efins, bins=50)
+    plt.show()

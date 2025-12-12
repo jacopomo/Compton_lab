@@ -155,8 +155,7 @@ class Photons:
 
         dead = ~active
         if np.any(dead):
-            E[dead] = 0.0
-            w[dead] = 0.0
+            self.alive[dead]=False
 
         if not np.any(active):
             return E, pos, direc, w
@@ -216,7 +215,13 @@ class Photons:
         E = self.energy[idx]
         pos = self.pos[idx]
         direc = self.direc[idx]
+
         w = self.weight[idx]
+        active = E >= E_th
+
+        dead = ~active
+        if np.any(dead):
+            self.alive[dead]=False
 
         L_exit, _ = volume.exit_distance(pos, direc)
         mfp = mat.mfp_compton(E)
@@ -304,12 +309,17 @@ class Photons:
         idx = self._resolve_idx(mask, idx)
         if idx.size == 0:
             return
+        
+        E_initial = self.energy[idx].copy()
 
         E, pos, direc, w = self._force_first_compton(volume, E_th, idx)
 
         self.energy[idx] = E
         self.pos[idx] = pos
         self.weight[idx] = w
+        energy_deposited = E_initial-E
+        small_deposit = energy_deposited < E_th
+        self.alive[idx[small_deposit]] = False
 
         return self.move_to_int(volume, idx=idx)
     
