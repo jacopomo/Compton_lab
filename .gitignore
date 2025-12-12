@@ -1,5 +1,6 @@
 Montecarlo/results/csv
 *.npz
+kn_lut.npz
 
 # Ignora i file ausiliari di LaTex e il pdf prodotto
 *.aux
