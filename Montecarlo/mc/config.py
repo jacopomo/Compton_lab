@@ -25,7 +25,6 @@ E1, E2 = 1173.240, 1332.508 # energy of the photons [keV]
 ### Config
 E_GRID = np.linspace(1,E2+50,4*(1332+50))
 MU_GRID = np.linspace(-1.0, 1.0, 1000)
-THETA_GRID=np.arccos(MU_GRID)
 
 #np.random.seed(42) # seed
 N_MC = int(1e6) # number of default MC samples 

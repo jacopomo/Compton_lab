@@ -4,7 +4,7 @@ import numpy as np
 import scipy.integrate as integrate
 
 from mc.physics.compton import compton
-from mc.config import RE, E1, E2, E_GRID, THETA_GRID
+from mc.config import RE, E1, E2, E_GRID, MU_GRID
 from mc.utils.math3d import to_full_array
 
 def kn(E, mu):
@@ -104,4 +104,4 @@ def sample_kn(E_ph, E_grid, mu_grid, cdf):
         mu_out[sel] = mu_vals
     return mu_out, F_allowed_arr
 
-PDF, CDF = build_kn_lut(E_GRID, THETA_GRID, savelut=True)
+PDF, CDF = build_kn_lut(E_GRID, MU_GRID, savelut=True)
