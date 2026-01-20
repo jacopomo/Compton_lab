@@ -6,6 +6,7 @@ from scipy.stats import linregress
 import json
 import os
 import inspect
+from pathlib import Path
 
 import utils as u
 
@@ -142,7 +143,7 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
 
 def calibration(path_files, vis=False):
     # --- 3. LETTURA DATI E CONFIGURAZIONE ---
-    file_config = path_files / "config_calibration.json"
+    file_config = Path(__file__).parent / "Config" / "config_calibration.json"
 
     if not os.path.exists(file_config):
         print(f"ERRORE: Devi creare il file '{file_config}'!")
