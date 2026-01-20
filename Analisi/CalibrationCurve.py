@@ -16,7 +16,7 @@ functions_list = {"gauss_exp":{"func":u.gauss_exp, "num peak": 1},
 
 
 # --- 2. FUNZIONE DI FIT ---
-def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzare=False):
+def esegui_fit(bin_centers, counts, config_sorgente, bar_printing=False, visualizzare=False):
     try:
         nome = config_sorgente['nome']
         energia = config_sorgente['energia']
@@ -27,7 +27,7 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
     except Exception as e:
         print(f"\n --> ERRORE: {e}\n            Controlla di aver definito nome, energia, finestra e guess nel file JSON.\n")    
 
-    if printing:
+    if not bar_printing:
         print(f"\nAnalisi: {nome} ({energia} keV)...")
 
     # Selezione Finestra
@@ -39,7 +39,7 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
     # Controllo preliminare dati
     if len(x_win) < 6:
         print(f"\n  --> ERRORE: Finestra [{low}-{high}] vuota o troppo stretta!\n")
-        return None, None
+        return None, None, None, None
 
     # Scelgo La Funzione Di Fit
     if special_fit is not None:
@@ -48,14 +48,16 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
             num_peak = functions_list[special_fit]["num peak"]
             pippo = np.arange(num_peak, dtype=int)
             musk = np.ones(len(pippo), dtype=int) + 3 * pippo
-            if printing:
+            if not bar_printing:
                 print(f"  --> Selezionato manualmente la funzione di fit '{special_fit}'")
         except:
             print(f"\n  --> ERRORE:'{special_fit}' non rietra tra le funzioni di fit possibili.\n")
-            return None, None
+            return None, None, None, None
     else:
         fit_function = functions_list["gauss_exp"]["func"]
         musk = [1]
+    muskII = musk + np.ones(len(musk), dtype=int)
+
     
     #Fisso I Parametri Iniziali
     num_par = len(inspect.signature(fit_function).parameters) - 1
@@ -63,18 +65,18 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
         p0 = guess
     else:
         print(f"\n  --> ERRORE: Il numero dei parametri iniziali e' sbagliato!\n             La funzione '{fit_function}' richiede {num_par} parametri\n")
-        return None, None
+        return None, None, None, None
     if manual_bounds is not None:
         try:
             bounds_min = manual_bounds[0]
             bounds_max = manual_bounds[1]
         except:
             print("\n  --> ERRORE: la varibile bounds nel JSON deve essere una ntuple di due elementi.")
-            return None, None
+            return None, None, None, None
         # Controllo che i limiti e i parametri iniziali abbiamo la stessa dimensione
         if len(bounds_min)!=num_par or len(bounds_max)!=num_par:
             print(f"\n  --> ERRORE: Il numero dei bounds e' sbagliato!\n             La funzione '{fit_function}' richiede {num_par} parametri\n")
-            return None, None
+            return None, None, None, None
     else:
         if fit_function == u.gauss_exp:
             #             A,      mu,   sigma,  B0,     k,      B1
@@ -91,6 +93,7 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
         
         popt, pcov = curve_fit(fit_function, x_win, y_win, p0=p0, bounds=(bounds_min, bounds_max), maxfev=20000)
         err_mu = np.sqrt(np.diag(pcov))[musk]
+        err_sigma = np.sqrt(np.diag(pcov))[muskII]
 
         
         # Visualizzazione risultato fit
@@ -123,7 +126,7 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
         # togli il bordo superiore del pannello residui
         ax_bottom.tick_params(top=False)
 
-        if printing:
+        if not bar_printing:
             print(f"  --> OK! Picco trovato a canale {popt[musk]} +/- {err_mu}")
             print(f"  --> Contronto tra parametri di fit e parametri iniziali:")
             print(f"      popt - p0 = {popt - p0}")
@@ -134,14 +137,14 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
         else:
             plt.close()
 
-        return popt[musk], err_mu
+        return popt[musk], popt[muskII], err_mu, err_sigma
 
     except Exception as e:
         print(f"  --> FIT FALLITO: {e}")
-        return None, None
+        return None, None, None, None
 
 
-def calibration(day, vis=False):
+def calibration(day, bar_printing=False, fits=False, bar_visualizzare=False):
     # --- 3. LETTURA DATI E CONFIGURAZIONE ---
 
     base_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "Dati", "Calibration")
@@ -150,8 +153,9 @@ def calibration(day, vis=False):
     config_file = "config_" + day + ".json"
     config_path = os.path.join(base_path, "Config", config_file)
 
+
     if not os.path.exists(config_path):
-        print(f"ERRORE: Devi creare il file '{config_path}'!")
+        print(f"ERRORE: Devi creare il file '{config_file}'!")
         exit()
 
     with open(config_path, 'r') as f:
@@ -162,13 +166,16 @@ def calibration(day, vis=False):
     enable_print = bool(config_globale["print"])
     enable_show = bool(config_globale["show"])
 
-    if vis:
+    if not bar_visualizzare:
         print(f"--- AVVIO CALIBRAZIONE AUTOMATICA ---")
 
     # --- 4. CICLO DI ANALISI ---
     punti_ch = np.array([])
     punti_E = np.array([])
     errori_ch = np.array([])
+
+    punti_ch_sigma = np.array([])
+
     nomi_souce = np.array([])
     fit_or_not = np.array([])
     cache_dati = {} # Per non ricaricare i file se usati più volte
@@ -201,12 +208,14 @@ def calibration(day, vis=False):
         centers, counts = cache_dati[nome_file]
         
         # Fit
-        mu, err = esegui_fit(centers, counts, sorgente, printing=vis, visualizzare=vis)
+        mu, sigma, err, _ = esegui_fit(centers, counts, sorgente, bar_printing=bar_printing, visualizzare=fits)
         
         if mu is not None:
             punti_ch = np.concatenate((punti_ch, mu))
             punti_E = np.concatenate((punti_E, sorgente['energia']))
             errori_ch = np.concatenate((errori_ch, err))
+
+            punti_ch_sigma = np.concatenate((punti_ch_sigma, sigma))
 
             gattuso = np.empty(len(mu),dtype="U50")
             gattuso[0] = sorgente['nome']
@@ -230,12 +239,37 @@ def calibration(day, vis=False):
     errori_ch= errori_ch[elon]
     nomi_souce = nomi_souce[elon]
 
-    # Regressione Lineare 
+    # Interpolazione con una parabola 
 
-    res = linregress(x_val, y_val)
-    m, q, r2 = res.slope, res.intercept, res.rvalue**2
+    coeff = np.polyfit(x_val, y_val, deg=2)
+    A, B, C = coeff
+    p = np.poly1d(coeff)
     
-    if vis:
+    y_fit = p(x_val)
+    residuals = y_val - y_fit
+    ss_res = np.sum(residuals**2)
+    ss_tot = np.sum((y_val - np.mean(y_val))**2)
+
+    r2 = 1 - ss_res/ss_tot
+
+    # Fit per la risoluzione
+
+    #converto le larghezze da ch -> eV
+    punti_E_sigma = abs(2 * A * punti_ch[elon] + B) * punti_ch_sigma[elon]
+
+    #interpolo con una parabola
+    coeff_risol = np.polyfit(y_fit, punti_E_sigma**2, deg=2)
+    s = np.poly1d(coeff_risol)
+
+    sigma_fit2 = s(y_fit)
+    residuals_risol = punti_E_sigma**2 - sigma_fit2
+    ss_res_risol = np.sum(residuals_risol**2)
+    ss_tot_risol = np.sum((punti_ch_sigma**2 - np.mean(punti_ch_sigma**2))**2)
+
+    s2 = 1 - ss_res_risol/ss_tot_risol
+
+    
+    if not bar_visualizzare:
         print("\n" + "="*40)
         print(" RISULTATI CALIBRAZIONE COMPLETA")
         print("="*40)
@@ -243,11 +277,12 @@ def calibration(day, vis=False):
             print(f" Canale {c:.2f} -> {e:.2f} keV    {n}")
 
         print("-" * 40)
-        print(f"Pendenza (Guadagno) m: {m:.5f} keV/Canale")
-        print(f"Offset (Intercetta) q: {q:.3f} keV")
+        print(f"Termin di secondo grado: {A:.5f} KeV/Canale^2")
+        print(f"Termin di primo grado: {B:.5f} KeV/Canale")
+        print(f"Offset: {C:.3f} keV")
         print(f"Linearità (R^2):       {r2:.6f}")
         print("-" * 40)
-        print(f"FORMULA: E [keV] = {m:.5f} * Canale + ({q:.3f})")
+        print(f"FORMULA: E [keV] = {A:.5f} * Canale^2 + ({B:.3f}) * Canale + ({C:.3f})")
 
         # Grafico Finale
         fig_final, ax_top = plt.subplots(figsize=(6, 4))
@@ -255,17 +290,17 @@ def calibration(day, vis=False):
 
         ax_top.errorbar(x_val, y_val, xerr=errori_ch, fmt='o', color='blue', label='Punti Sperimentali')
         x_line = np.linspace(0, max(x_val)*1.1, 100)
-        ax_top.plot(x_line, m*x_line + q, 'r-', label=f'Fit Lineare ($R^2$={r2:.5f})')
+        ax_top.plot(x_line, p(x_line), 'r-', label=f'Fit ($R^2$={r2:.5f})')
 
         ax_top.set_ylabel("Energia [KeV]")
-        ax_top.set_title(f"Curva di Calibrazione (5 Punti)\nE = {m:.4f}C + {q:.2f}")
+        ax_top.set_title(f"Curva di Calibrazione (5 Punti)\nE = {A:.4f}C^2 + ({B:.2f})*C + ({C:.2f})")
         ax_top.grid(True, linestyle='--', alpha=0.5)
         ax_top.legend()
         
         divider = make_axes_locatable(ax_top)
         ax_bottom = divider.append_axes("bottom", size="25%", pad=0.0, sharex=ax_top)
         
-        res = (y_val - (x_val * m) - q)
+        res = (y_val - p(x_val))
         ax_bottom.errorbar(x_val, res, fmt='o', color='blue', label='Residui')
         ax_bottom.axhline(0, linestyle='--')
         ax_bottom.grid(True, linestyle='--', alpha=0.5)
@@ -277,7 +312,34 @@ def calibration(day, vis=False):
 
         plt.show()
 
-    return m, q, r2
+        fig_final, ax_top = plt.subplots(figsize=(6, 4))
+
+
+        ax_top.errorbar(y_fit, punti_E_sigma, fmt='o', color='blue', label='Punti Sperimentali')
+        x_line = np.linspace(0, max(y_fit)*1.1, 100)
+        ax_top.plot(x_line, np.sqrt(s(x_line)), 'r-', label=f'Fit ($R^2$={s2:.5f})')
+
+        ax_top.set_ylabel("Larghezze [KeV]")
+        ax_top.set_title(f"Curva di Risoluzione (5 Punti)\nSigma^2 = {coeff_risol[0]:.4f}E^2 + ({coeff_risol[1]:.2f})*C + ({coeff_risol[2]:.2f})")
+        ax_top.grid(True, linestyle='--', alpha=0.5)
+        ax_top.legend()
+        
+        divider = make_axes_locatable(ax_top)
+        ax_bottom = divider.append_axes("bottom", size="25%", pad=0.0, sharex=ax_top)
+        
+        res = (punti_E_sigma - np.sqrt(s(y_fit)))
+        ax_bottom.errorbar(y_fit, res, fmt='o', color='blue', label='Residui')
+        ax_bottom.axhline(0, linestyle='--')
+        ax_bottom.grid(True, linestyle='--', alpha=0.5)
+        ax_bottom.set_xlabel("Energia [KeV]")
+        ax_bottom.set_ylabel("Residui")
+
+        ax_top.tick_params(axis='x', labelbottom=False)
+        ax_bottom.tick_params(top=False)
+
+        plt.show()
+
+    return coeff, r2, coeff_risol, s2
 
 
 
@@ -303,11 +365,27 @@ def main():
     )
 
     parser.add_argument(
+        '-f', 
+        '--fits', 
+        action='store_true',
+        default=False,
+        help=f"View all graphs from fits."
+    )
+
+    parser.add_argument(
+        '-p', 
+        '--print', 
+        action='store_true',
+        default=False,
+        help=f"Disabe printing console's messages."
+    )
+
+    parser.add_argument(
         '-v', 
         '--view', 
         action='store_true',
         default=False,
-        help=f"View all graphs from fits."
+        help=f"View final calibration curves."
     )
 
     args = parser.parse_args()
@@ -317,7 +395,7 @@ def main():
     print("======================================================")
 
 
-    calibration(args.day, args.view)
+    calibration(day=args.day, bar_printing=args.print, fits=args.fits, bar_visualizzare=args.view)
 
 if __name__ == "__main__":
     main()
