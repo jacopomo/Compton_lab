@@ -9,18 +9,18 @@
             "file": "Am241.dat",
             "energia": [55.56, 59.54],
             "fit or not": [0, 1],
-            "finestra": [138, 330],
+            "finestra": [138, 300],
             "resize_factor": 1,
-            "guess": [580, 210, 24, 5891, 243, 24, 261, 0.00001, 250],
+            "guess": [580, 230, 24, 5891, 243, 24, 261, 0.00001, 250],
             "special fit": "double_gauss_exp"
         },
         {
             "nome": "Sodio-22 (Annichilazione)",
             "file": "Na22.dat",
             "energia": [511.0],
-            "finestra": [1550, 2320],
+            "finestra": [1760, 2320],
             "resize_factor": 8,
-            "guess": [252, 2050, 78, 225, 0.001, 10]
+            "guess": [252, 2060, 78, 225, 0.001, 10]
         },
         {
             "nome": "Cesio-137",

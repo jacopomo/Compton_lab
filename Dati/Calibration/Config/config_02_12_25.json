@@ -9,7 +9,7 @@
             "file": "Am241.dat",
             "energia": [55.56, 59.54],
             "fit or not": [0, 1],
-            "finestra": [138, 400],
+            "finestra": [138, 316],
             "resize_factor": 1,
             "guess": [580, 210, 24, 5891, 243, 24, 261, 0.00001, 250],
             "special fit": "double_gauss_exp"
@@ -28,9 +28,9 @@
             "nome": "Cesio-137",
             "file": "Cs137.dat",
             "energia": [661.7],
-            "finestra": [2440, 3250],
+            "finestra": [2560, 3050],
             "resize_factor": 8,
-            "guess": [437, 2842, 85, 150, 0.0008, 15]
+            "guess": [437, 2710, 85, 150, 0.0008, 15]
         },
         {
             "nome": "Cobalto-60",
