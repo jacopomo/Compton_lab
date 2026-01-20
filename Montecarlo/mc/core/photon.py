@@ -242,6 +242,30 @@ class Photons:
 
         return E, pos, direc, w
 
+    def _force_first_compton_only_pos(self, volume, idx=None):
+        mat = volume.material
+
+        if idx == None:
+            idx = self.alive
+
+        E = self.energy[idx]
+        pos = self.pos[idx]
+        direc = self.direc[idx]
+        w = self.weight[idx]
+
+        L_exit, _ = volume.exit_distance(pos, direc)
+        mfp = mat.mfp_compton(E)
+
+        P_int = 1.0 - np.exp(-L_exit / mfp)
+
+        u = np.random.random(len(E))
+        s = -np.log(1.0 - u * P_int) * mfp
+
+        pos += 0.999 * s[:, None] * direc
+        w *= P_int
+
+        return pos, w
+
     def _transport_until_exit_or_absorb(self, volume, idx, E, pos, direc, max_steps=100):
         mat = volume.material
 
