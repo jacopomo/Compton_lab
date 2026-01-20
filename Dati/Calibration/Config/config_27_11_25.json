@@ -9,7 +9,7 @@
             "file": "Am241.dat",
             "energia": [55.56, 59.54],
             "fit or not": [0, 1],
-            "finestra": [138, 400],
+            "finestra": [138, 350],
             "resize_factor": 1,
             "guess": [580, 210, 24, 5891, 243, 24, 261, 0.00001, 250],
             "special fit": "double_gauss_exp"
@@ -20,7 +20,7 @@
             "energia": [511.0, 700.0],
             "fit or not": [1, 0],
             "finestra": [1750, 3150],
-            "resize_factor": 16,
+            "resize_factor": 8,
             "guess": [75, 2200, 78, 75, 2820, 78, 40, 0.001, 10],
             "special fit": "double_gauss_exp"
         },
@@ -36,9 +36,9 @@
             "nome": "Cobalto-60",
             "file": "Co60.dat",
             "energia": [1173.2, 1332.5],
-            "finestra": [4000, 6450],
+            "finestra": [4780, 6450],
             "resize_factor": 8,
-            "guess": [452, 4769, 131, 452, 5409, 131, 10000, 0.001, 7],
+            "guess": [452, 5015, 131, 452, 5685, 131, 10000, 0.001, 7],
             "special fit": "double_gauss_exp"
         }
     ]

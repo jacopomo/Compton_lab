@@ -9,7 +9,7 @@
             "file": "Am241.dat",
             "energia": [55.56, 59.54],
             "fit or not": [0, 1],
-            "finestra": [138, 400],
+            "finestra": [138, 318],
             "resize_factor": 1,
             "guess": [580, 210, 24, 5891, 243, 24, 261, 0.00001, 250],
             "special fit": "double_gauss_exp"
@@ -19,24 +19,24 @@
             "file": "Na22.dat",
             "energia": [511.0, 700.0],
             "fit or not": [1, 0],
-            "finestra": [1750, 3150],
-            "resize_factor": 16,
-            "guess": [75, 2200, 78, 75, 2820, 78, 40, 0.001, 10],
+            "finestra": [1625, 3150],
+            "resize_factor": 8,
+            "guess": [75, 1970, 78, 75, 2530, 78, 40, 0.001, 10],
             "special fit": "double_gauss_exp"
         },
         {
             "nome": "Cesio-137",
             "file": "Cs137.dat",
             "energia": [661.7],
-            "finestra": [2670, 3250],
+            "finestra": [2360, 3000],
             "resize_factor": 8,
-            "guess": [437, 2842, 85, 150, 0.0008, 15]
+            "guess": [437, 2550, 85, 150, 0.0008, 15]
         },
         {
             "nome": "Cobalto-60",
             "file": "Co60.dat",
             "energia": [1173.2, 1332.5],
-            "finestra": [4000, 6450],
+            "finestra": [4230, 5750],
             "resize_factor": 8,
             "guess": [452, 4769, 131, 452, 5409, 131, 10000, 0.001, 7],
             "special fit": "double_gauss_exp"
