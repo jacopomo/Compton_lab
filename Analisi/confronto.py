@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import analisi
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -17,8 +19,18 @@ def main():
         type=str,
         help="Angolo in gradi (es: 30, 60, 90)"
     )
+    parser.add_argument(
+        "rerun",
+        type=bool,
+        default=False,
+        help="Ri-runna l'analisi, calibrazione, e MC"
+    )
     args = parser.parse_args()
     angle = args.angle
+    rerun = args.rerun
+
+    if rerun:
+        analisi.main()
 
     try:
         # ===============================
@@ -48,10 +60,10 @@ def main():
         )
 
         if not spettro_dati_path.is_file():
-            raise FileNotFoundError(f"File non trovato: {spettro_dati_path.resolve()}")
+            raise FileNotFoundError(f"File non trovato: {spettro_dati_path.resolve()} (hint: re-run?)")
 
         if not spettro_simulato_path.is_file():
-            raise FileNotFoundError(f"File non trovato: {spettro_simulato_path.resolve()}")
+            raise FileNotFoundError(f"File non trovato: {spettro_simulato_path.resolve()} (hint: re-run?)")
 
         # ===============================
         # Lettura dati
