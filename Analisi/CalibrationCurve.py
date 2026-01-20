@@ -6,6 +6,7 @@ from scipy.stats import linregress
 import json
 import os
 import inspect
+import argparse
 
 import utils as u
 
@@ -140,15 +141,20 @@ def esegui_fit(bin_centers, counts, config_sorgente, printing=False, visualizzar
         return None, None
 
 
-def calibration(path_files, vis=False):
+def calibration(day, vis=False):
     # --- 3. LETTURA DATI E CONFIGURAZIONE ---
-    file_config = path_files / "config_calibration.json"
 
-    if not os.path.exists(file_config):
-        print(f"ERRORE: Devi creare il file '{file_config}'!")
+    base_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "Dati", "Calibration")
+    data_path = os.path.join(base_path, day)
+
+    config_file = "config_" + day + ".json"
+    config_path = os.path.join(base_path, "Config", config_file)
+
+    if not os.path.exists(config_path):
+        print(f"ERRORE: Devi creare il file '{config_path}'!")
         exit()
 
-    with open(file_config, 'r') as f:
+    with open(config_path, 'r') as f:
         config_globale = json.load(f)
 
     lista_sorgenti = config_globale['sorgenti']
@@ -172,9 +178,11 @@ def calibration(path_files, vis=False):
         
         # Caricamento (solo se non già in memoria)
         if nome_file not in cache_dati:
-            path = path_files / nome_file
+            path = os.path.join(data_path, nome_file)
             if not os.path.exists(path):
+                print("\n=====================================================================================")
                 print(f"ATTENZIONE: File '{path}' non trovato. Salto {sorgente['nome']}.")
+                print("=====================================================================================")
                 continue
             
             try:
@@ -271,6 +279,45 @@ def calibration(path_files, vis=False):
 
     return m, q, r2
 
+
+
+
+
+
+def main():
+    """
+    Main entry point for the calibration of one day.
+    Parses command line arguments and runs the calibration.
+    """
+    parser = argparse.ArgumentParser(
+        description="Run the calibration analysis in a specific date.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+
+    parser.add_argument(
+        '-d', 
+        '--day', 
+        type=str, 
+        default="20_11_25",
+        help=f"Set date from which take data. (Default: 20_11_25)"
+    )
+
+    parser.add_argument(
+        '-v', 
+        '--view', 
+        action='store_true',
+        default=False,
+        help=f"View all graphs from fits."
+    )
+
+    args = parser.parse_args()
+
+    # Pass the parsed arguments to your main simulation function
+    print(f"Starting calibration of {args.day}.\n")
+    print("======================================================")
+
+
+    calibration(args.day, args.view)
+
 if __name__ == "__main__":
-    path = input(" --> Nome directory: ")
-    calibration(path, vis=True)
+    main()
