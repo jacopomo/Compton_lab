@@ -87,7 +87,7 @@ def cmc(n, phi, save):
     pface = Rectangle(np.array([0,0,DCP-0.1]), WP, HP, 0)
     plastic = RectPrism(pface, LP+0.1, material=C)
 
-    E_th_plastic = np.random.normal(150.0, 5.0, len(photonpool.alive))
+    E_th_plastic = np.random.normal(60.0, 15.0, len(photonpool.alive))
     exit_base_mask = photonpool.force_one_scatter_moveto(plastic, E_th=E_th_plastic)
     exit_front_mask = photonpool.pos[:,2] > DCP-0.1+LP-1e-3
     hit_plastic_front_mask = exit_base_mask & exit_front_mask
@@ -97,7 +97,7 @@ def cmc(n, phi, save):
     print(f"{alive_n} photons have exited the front face of the plastic ({round(alive_n*100/n,2)}% of original)")
     #plot_photon_positions(photonpool.pos)
 
-    show_E_plastic_graph = True
+    show_E_plastic_graph = False
     if show_E_plastic_graph:
         plt.hist(photonpool.energy, bins=80, histtype="step", weights=photonpool.weight)
         plt.title("Energy spectrum of photons that exit the plastic")
@@ -139,7 +139,7 @@ def cmc(n, phi, save):
     # Force at least one scatter within the detector, pe or compton
     # When photons leave note their energy and calculate energy deposited
     analyzed_n = photonpool.alive.sum()
-    E_th_crystal = np.random.normal(750.0, 50.0, len(photonpool.alive))
+    E_th_crystal = np.random.normal(700.0, 25.0, len(photonpool.alive))
     E_deposited = photonpool.force_first_then_transport(crystal, E_th=E_th_crystal)
     
     alive_mask = photonpool.alive # photons who passed the threshold
@@ -161,14 +161,3 @@ def cmc(n, phi, save):
     if save:
         save_histogram(E_deposited, weightss, phi)
         save_csv(E_deposited, phi)
-
-
-def debustibus():
-    n=1000000
-    mus, _ = sample_kn(np.full(n,1000), E_GRID, MU_GRID, CDF)
-    Es = np.full(n, 1173)
-    Efins = compton(Es, mus)
-    plt.hist(mus, bins=50)
-    plt.show()
-    plt.hist(Efins, bins=50)
-    plt.show()

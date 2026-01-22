@@ -15,26 +15,24 @@ def find_paths_for_angle(angle_str: str) -> tuple[Path, Path]:
     """
     
     # Calcolo del percorso base (presupponendo che 'Analisi' sia accanto a 'Dati')
-    base_path = Path(__file__).parent.parent / 'Dati' / 'Angoli'
-    angle_dir_name = f"{angle_str}deg"
-    
-    target_dir = base_path / angle_dir_name
-    
-    if not target_dir.is_dir():
-        raise ValueError(f"Errore: Directory non trovata per l'angolo '{angle_str}'. Cercato in: {target_dir.resolve()}")
-
-    file_pattern = f"{angle_dir_name}_*.dat"
-    data_files = list(target_dir.glob(file_pattern))
+    base_path = Path(__file__).parent.parent / 'Dati' / 'Measures' / 'Angles'
+    angle_name = f"{angle_str}deg"
+        
+    file_pattern = f"{angle_name}_*.dat"
+    data_files = list(base_path.glob(file_pattern))
     
     if not data_files:
-        raise ValueError(f"Errore: Nessun file dati trovato con pattern '{file_pattern}' in {target_dir.resolve()}")
+        raise ValueError(f"Errore: Nessun file dati trovato con pattern '{file_pattern}' in {base_path.resolve()}")
     
     if len(data_files) > 1:
         print(f"Avviso: Trovati più file dati per {angle_str}deg. Verrà usato il primo trovato.")
 
     data_file_path = data_files[0]
-    
-    calibration_folder_path = target_dir / 'Calibration'
+
+    filename = data_file_path.stem                      # e.g. "20deg_251125"
+    date = filename.split("_", 1)[1]                    # "251125"
+    date_str = f"{date[:2]}_{date[2:4]}_{date[4:6]}"    # "25_11_25"
+    calibration_folder_path = Path(__file__).parent.parent / 'Dati' / 'Calibration' / date_str
 
     if not calibration_folder_path.is_dir():
         raise ValueError(f"Errore: Directory Calibration non trovata in: {calibration_folder_path.resolve()}")
