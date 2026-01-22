@@ -17,13 +17,13 @@ with open(config_path, 'r') as f:
 
 dati = {k: np.array(v) for k, v in config["Dati"].items()}
 deg, pmt1, pmt2, both, delta_t = dati.values()
-tau = 117 * 1e-6
+tau = 113 * 1e-6
 
 rate1 = pmt1/delta_t
 rate2 = pmt2/delta_t
 rate_both = both/delta_t
 
-sigma_rate1 = np.sqrt(pmt1)/delta_t
+sigma_rate1 = np.sqrt(pmt1)/delttaua_t
 sigma_rate2 = np.sqrt(pmt2)/delta_t
 sigma_rateboth = np.sqrt(both)/delta_t
 

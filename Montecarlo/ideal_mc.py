@@ -34,6 +34,15 @@ def main():
         default=0.0,
         help=f"Set the NaI position's angle in deg. (Default: 0.0 deg)"
     )
+
+    # Argument for changing bins number of the output histograms
+    parser.add_argument(
+        '-b', 
+        '--bins', 
+        type=int, 
+        default=1000,
+        help=f"Set the number of bins for final output histogram (give the number of rows/columns of 2D histogram). (Default: 1000)"
+    )
     
     # Argument for whether to save or not
     parser.add_argument(
@@ -72,7 +81,7 @@ def main():
     # Pass the parsed arguments to your main simulation function
     print(f"Starting simulation with N={args.num_photons}\n")
     print("-------------------------------------------------------------")
-    imc(n=args.num_photons, PHI=args.degree, view=args.view_results, debug=args.debug_flag)
+    imc(n=args.num_photons, PHI=args.degree, bins_output=args.bins, view=args.view_results, debug=args.debug_flag, save=args.save_results)
 
 if __name__ == "__main__":
     main()

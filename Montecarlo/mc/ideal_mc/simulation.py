@@ -3,6 +3,7 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 import time
 import os
+import h5py
 
 from mc.geometry.surface import Disk, Rectangle
 from mc.geometry.volume import RectPrism, Cylinder
@@ -14,8 +15,8 @@ import mc.utils.plotting as pl
 
 from mc.config import RE, E1, E2, RCOL, L, WP, LP, HP, DCP, DPC, LC, RC, MU_GRID, E_GRID
 
-def imc(n, PHI, view, debug=False):
-    PHI = np.radians(PHI)
+def imc(n, PHI, bins_output, view, debug, save):
+    phi = np.radians(PHI)
 
     start = time.time()
     print("Start inizialitazion...")
@@ -72,7 +73,7 @@ def imc(n, PHI, view, debug=False):
 
     #Inizialization of NaI's surface and final directions
     R = DPC + LP/2
-    base_crystal = Disk(np.array([0, R*np.sin(PHI), R*np.cos(PHI)]), RC, PHI)
+    base_crystal = Disk(np.array([0, R*np.sin(phi), R*np.cos(phi)]), RC, phi)
 
     NaI = Material("NaI")
     volume_crystal = Cylinder(base_crystal, LC, material=NaI)
@@ -130,9 +131,26 @@ def imc(n, PHI, view, debug=False):
 
     current_time = time.time()
     print(f"Finish simulation. The alive photons are equivalent to N = {eq_n:.1f} photons ({eq_n/n*100:.1f} %). ({current_time-start:.3f} s)")
+    
+    H, xedges, yedges, _, _ = pl.hist2d(energies_depo, lost_energies, bins=bins_output, weights=final_weight, title="Istogramma finale dell'energia depositata nel cristallo vs quella nel plastico", cmap="viridis")
 
     if view or debug:
-        pl.hist2d(energies_depo, lost_energies, bins=200, weights=final_weight, title="Istogramma finale dell'energia depositata nel cristallo vs quella nel plastico", cmap="viridis")
+        pl.plot_histogram(energies_depo, weights=final_weight, bins=bins_output, title="Spettro dell'energia depositata nel NaI")
 
-    if view or debug:
-        pl.plot_histogram(energies_depo, weights=final_weight, bins=300, title="Spettro dell'energia depositata nel NaI")
+
+    if save:
+        degPHI = str(PHI)
+        file_name = degPHI + 'deg.h5'
+
+        path_dir = os.path.join('results', '2d_histograms', degPHI + 'deg')
+        os.makedirs(path_dir, exist_ok=True)
+
+        path_file = os.path.join(path_dir, file_name)
+
+        with h5py.File(path_file, 'w') as f:
+            print("\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            print("\nOutput file .h5 saved in Montecarlo/results.\n")
+            print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
+            f.create_dataset('H', data=H)
+            f.create_dataset('xedges', data=xedges)
+            f.create_dataset('yedges', data=yedges)
