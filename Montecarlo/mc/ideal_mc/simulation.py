@@ -139,10 +139,10 @@ def imc(n, PHI, bins_output, view, debug, save):
 
 
     if save:
-        degPHI = str(PHI)
+        degPHI = str(int(PHI))
         file_name = degPHI + 'deg.h5'
 
-        path_dir = os.path.join('results', '2d_histograms', degPHI + 'deg')
+        path_dir = os.path.join('results', '2d_histograms')
         os.makedirs(path_dir, exist_ok=True)
 
         path_file = os.path.join(path_dir, file_name)
