@@ -3,7 +3,7 @@
 import argparse
 import numpy as np
 
-from mc.core.simulation import cmc, debustibus
+from mc.core.simulation import cmc
 from mc.config import N_MC, PHI, SAVE_RESULTS
 
 
@@ -56,4 +56,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    #debustibus()
