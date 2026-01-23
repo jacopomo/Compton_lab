@@ -71,7 +71,7 @@ def gauss_cdf(x, mu, sigma):
 # Forward model
 # ----------------------------
 def model_projection(params, H, xcenters, ycenters):
-    mu_x, sig_x, mu_y, sig_y, A = params
+    mu_x, sig_x, mu_y, sig_y = params
 
     B = 0
 
@@ -182,6 +182,7 @@ def main():
 
     # Bin data onto new MC x-binning
     data_binned, _ = np.histogram(data_energy, bins=xedges, weights=data_counts)
+    data_binned = data_binned/data_binned.sum()
     
     # ----------------------------
     # Apply crystal energy smearing
@@ -245,7 +246,7 @@ def main():
     print("Message:", res.message)
     print()
 
-    names = ["mu_x", "sigma_x", "mu_y", "sigma_y", "A"]
+    names = ["mu_x", "sigma_x", "mu_y", "sigma_y"]
     cov = res.hess_inv.todense()
     errs = np.sqrt(np.diag(cov))
 
