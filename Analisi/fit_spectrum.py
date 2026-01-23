@@ -71,13 +71,14 @@ def gauss_cdf(x, mu, sigma):
 # Forward model
 # ----------------------------
 def model_projection(params, H, xcenters, ycenters):
-    mu_x, sig_x, mu_y, sig_y, A = params
+    mu_x, sig_x, mu_y, sig_y = params
 
     fx = gauss_cdf(xcenters, mu_x, sig_x)[:, None] 
     fy = gauss_cdf(ycenters, mu_y, sig_y)[None, :] 
 
-    Hf = A * (H * fx * fy).sum(axis=1) # sum over plastic (y)
-    return Hf   
+    Hf = (H * fx * fy).sum(axis=1) # sum over plastic (y)
+    Hfn = Hf/(Hf.sum()) # normalized histogram
+    return Hfn   
 
 # ----------------------------
 # Poisson -2 log L
@@ -170,6 +171,7 @@ def main():
 
     # Bin data onto new MC x-binning
     data_binned, _ = np.histogram(data_energy, bins=xedges, weights=data_counts)
+    data_binned = data_binned/data_binned.sum()
     
     # ----------------------------
     # Apply crystal energy smearing
@@ -183,17 +185,15 @@ def main():
     x0 = [
         700.0,  # mu_x
         25,       # sig_x
-        60,  # mu_y
-        15,       # sig_y
-        np.sum(data_binned) / np.sum(H)  # A
+        80.5,  # mu_y
+        7.5       # sig_y
     ]
 
     bounds = [
-        (xcenters.min(), xcenters.max()),
-        (1e-3, None),
-        (ycenters.min(), ycenters.max()),
-        (1e-3, None),
-        (1e-6, None)
+        (650, 800),
+        (10, 100),
+        (60, 100),
+        (5, 20)
     ]
 
     res = minimize(
@@ -208,13 +208,13 @@ def main():
     best_params = res.x
 
     # Best-fit filtered histograms
-    mu_x, sig_x, mu_y, sig_y, A = best_params
+    mu_x, sig_x, mu_y, sig_y= best_params
 
-    fx = gauss_cdf(xcenters, mu_x, sig_x)[:, None]
+    H_proj = model_projection([0, 1e-3, 0, 1e-3], H, xcenters, ycenters)
+
+    fx = gauss_cdf(xcenters, mu_x, sig_x)[:, None] 
     fy = gauss_cdf(ycenters, mu_y, sig_y)[None, :]
-
-    H_filtered = A * (H * fx * fy)
-    H_proj = H_filtered.sum(axis=1)
+    H_filtered = (H * fx * fy)
 
     # ----------------------------
     # Results
@@ -224,7 +224,7 @@ def main():
     print("Message:", res.message)
     print()
 
-    names = ["mu_x", "sigma_x", "mu_y", "sigma_y", "A"]
+    names = ["mu_x", "sigma_x", "mu_y", "sigma_y"]
     cov = res.hess_inv.todense()
     errs = np.sqrt(np.diag(cov))
 
