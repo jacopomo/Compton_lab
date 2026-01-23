@@ -78,7 +78,8 @@ def model_projection(params, H, xcenters, ycenters):
 
     Hf = (H * fx * fy).sum(axis=1) # sum over plastic (y)
     Hfn = Hf/(Hf.sum()) # normalized histogram
-    return Hfn   
+    return Hfn  
+
 
 # ----------------------------
 # Poisson -2 log L
@@ -110,11 +111,18 @@ def main():
     default=1000,
     help="Number of bins (default: 60)"
 )
-    
+    parser.add_argument(
+    "-d", "--debug",
+    action='store_true',
+    default=False,
+    help="Activate debug histograms."
+)
+
     args = parser.parse_args()
 
     deg = args.deg
     vis = args.visualize
+    debug = args.debug
     n_bins = args.bins
     root = Path(__file__).resolve().parents[1]
 
@@ -210,7 +218,7 @@ def main():
     # Best-fit filtered histograms
     mu_x, sig_x, mu_y, sig_y= best_params
 
-    H_proj = model_projection([0, 1e-3, 0, 1e-3], H, xcenters, ycenters)
+    H_proj = model_projection([730, 30, 170, 20], H, xcenters, ycenters)
 
     fx = gauss_cdf(xcenters, mu_x, sig_x)[:, None] 
     fy = gauss_cdf(ycenters, mu_y, sig_y)[None, :]
@@ -253,7 +261,7 @@ def main():
         colors = cmap(np.linspace(0, 1, 256))
         colors[0] = [1, 1, 1, 0]
         return ListedColormap(colors)
-    if vis:
+    if debug:
         
         # --- 1. Original MC 2D histogram ---
         newcmap = transparent_zero_cmap()
@@ -297,6 +305,8 @@ def main():
         plt.colorbar(label="Counts")
         plt.tight_layout()
         plt.show()
+
+    if debug or vis:
         # --- 4. 1D projection vs data ---
         
         plt.figure(figsize=(7, 5))
