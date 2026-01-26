@@ -245,11 +245,8 @@ def main():
     print(f"p-value = {pval:.3f}")
 
     print(f"\ncov =\n")
-    print([f"{x:4.2f}  " for x in cov[0, :]])
-    print([f"{x:4.2f}  " for x in cov[1, :]])
-    print([f"{x:4.2f}  " for x in cov[2, :]])
-    print([f"{x:4.2f}  " for x in cov[3, :]])
-    print([f"{x:4.2f}  " for x in cov[4, :]])
+    for j in range(len(cov[:, 0])):
+        print([f"{x/(errs[i] * errs[j]):.2f}  " for i,x in enumerate(cov[j, :])])
 
 
     # ----------------------------
