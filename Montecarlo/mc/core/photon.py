@@ -15,8 +15,9 @@ class Photons:
         self.weight = np.ones(N, dtype=np.float64)          # (N,)
         self.alive = np.ones(N, dtype=bool)                 # (N,)
         self.E_depo_in_plastic = np.zeros(N, dtype=np.float64)  # (N,)
+        self.scatter_in_plastic = np.zeros(N, dtype=np.float64)      # (N,)
 
-    def append(self, pos, direc, energy, weight=None, E_depo_in_plastic=None, alive=None):
+    def append(self, pos, direc, energy, weight=None, E_depo_in_plastic=None, scatter_in_plastic=None, alive=None):
         """Adds a new batch of photons to the photon pool, useful for splitting
 
         Args:
@@ -25,6 +26,7 @@ class Photons:
             energy (nparray): (M,) photon energies
             weight (nparray, optional): photon weights. Defaults to None.
             E_depo_in_plastic (nparray, optional): energy deposited in plastic. Defaults to None.
+            scatter_in_plastic (nparray, optional): how much the photon scattered in plastic. Defaults to None.
             alive (nparray, optional): photon state. Defaults to None.
         """
         # pos: (M,3) or (3,), dir similar, energy: (M,)
@@ -38,12 +40,15 @@ class Photons:
             alive = np.ones(M, dtype=bool)
         if E_depo_in_plastic is None:
             E_depo_in_plastic = np.zeros(M, dtype=self.energy.dtype)
+        if scatter_in_plastic is None:
+            scatter_in_plastic = np.zeros(M, dtype=bool)
         self.pos = np.vstack([self.pos, pos])
         self.direc = np.vstack([self.direc, direc])
         self.energy = np.concatenate([self.energy, energy])
         self.weight = np.concatenate([self.weight, weight])
         self.alive = np.concatenate([self.alive, alive])
         self.E_depo_in_plastic = np.concatenate([self.E_depo_in_plastic, E_depo_in_plastic])
+        self.scatter_in_plastic = np.concatenate([self.scatter_in_plastic, scatter_in_plastic])
 
     def compact(self):
         """Removes dead photons to keep arrays small
@@ -54,6 +59,7 @@ class Photons:
         self.energy = self.energy[keep]
         self.weight = self.weight[keep]
         self.E_depo_in_plastic = self.E_depo_in_plastic[keep]
+        self.scatter_in_plastic = self.scatter_in_plastic[keep]
         self.alive = np.ones(len(self.energy), dtype=bool)
 
     def split(self, n):
@@ -73,6 +79,7 @@ class Photons:
         weight_new = np.repeat(self.weight, n - 1)
         alive_new  = np.repeat(self.alive,  n - 1)
         E_depo_in_plastic_new = np.repeat(self.E_depo_in_plastic, n - 1)
+        scatter_in_plastic_new = np.repeat(self.scatter_in_plastic, n - 1)
 
         # --- append ---
         self.append(
@@ -81,6 +88,7 @@ class Photons:
             energy=energy_new,
             weight=weight_new,
             E_depo_in_plastic=E_depo_in_plastic_new,
+            scatter_in_plastic=scatter_in_plastic_new,
             alive=alive_new
         )
 
@@ -248,7 +256,7 @@ class Photons:
 
         self.scatter_update_dirs(mus, idx=idx)
 
-        return E, pos, direc, w
+        return E, pos, direc, w, mus
 
     def _force_first_compton_only_pos(self, volume, idx=None):
         mat = volume.material
@@ -344,7 +352,7 @@ class Photons:
         
         E_initial = self.energy[idx].copy()
 
-        E, pos, direc, w = self._force_first_compton(volume, E_th, idx)
+        E, pos, direc, w, mus = self._force_first_compton(volume, E_th, idx)
 
         self.energy[idx] = E
         self.pos[idx] = pos
@@ -353,7 +361,7 @@ class Photons:
         small_deposit = energy_deposited < E_th
         self.alive[idx[small_deposit]] = False
 
-        return self.move_to_int(volume, idx=idx)
+        return self.move_to_int(volume, idx=idx), mus
     
     def force_first_then_transport(self, volume, E_th, mask=None, idx=None, max_steps=100):
         idx = self._resolve_idx(mask, idx)
