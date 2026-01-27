@@ -16,7 +16,7 @@ from mc.physics.kn_sampler import sample_kn, PDF, CDF
 from mc.physics.compton import compton
 from mc.physics.materials import Material
 from mc.io.results import save_csv, save_histogram
-from mc.config import RE, E1, E2, RCOL, L, WP, LP, HP, DCP, DPC, LC, RC, MU_GRID, E_GRID
+from mc.config import RE, E1, E2, RCOL, L, WP, LP, HP, DCP, DPC, LC, RC, MU_GRID, E_GRID, ME
 def cmc(n, phi, save):
     start = time.time()
 
@@ -92,9 +92,12 @@ def cmc(n, phi, save):
 
     photonpool.E_depo_in_plastic = photonpool.energy.copy() # initialize energy deposit tracking
     E_th_plastic = 0 # np.random.normal(60.0, 15.0, len(photonpool.alive))
-    exit_base_mask = photonpool.force_one_scatter_moveto(plastic, E_th=E_th_plastic)
+    exit_base_mask, mus = photonpool.force_one_scatter_moveto(plastic, E_th=E_th_plastic)
     exit_front_mask = photonpool.pos[:,2] > DCP-0.1+LP-1e-3
     hit_plastic_front_mask = exit_base_mask & exit_front_mask
+    # Only store scatter angles for photons that successfully exit the front
+    photonpool.scatter_in_plastic[hit_plastic_front_mask] = mus[hit_plastic_front_mask]
+
     photonpool.alive[~hit_plastic_front_mask] = False
     photonpool.compact() # remove dead
     photonpool.E_depo_in_plastic = photonpool.E_depo_in_plastic - photonpool.energy
@@ -162,6 +165,17 @@ def cmc(n, phi, save):
     plt.xlabel("Energy [keV]")
     plt.ylabel("Counts")
     plt.show()
+
+
+    theta_final = np.arccos(photonpool.scatter_in_plastic[alive_mask])
+    weights_corrected_final = weightss / np.sin(theta_final + 1e-10)
+    plt.hist(np.degrees(theta_final), bins=80, histtype="step", weights=weights_corrected_final)
+    plt.title(f"Distribution of scattering in plastic ({round(np.degrees(phi),1)} degrees)")
+    plt.xlabel("Scattering angle [degrees]")
+    plt.ylabel("Counts")
+    print(f"Average scattering angle in plastic: {round(np.degrees(np.average(theta_final, weights=weights_corrected_final)),2)} degrees, STD: {round(np.degrees(np.std(theta_final, ddof=1)),2)} degrees")
+    plt.show()
+
 
     lost_energies = photonpool.E_depo_in_plastic[alive_mask]
     H, xedges, yedges, _, _ = pl.hist2d(E_deposited, lost_energies, bins=1000, weights=weightss, title="Istogramma finale dell'energia depositata nel cristallo vs quella nel plastico", cmap="viridis")
