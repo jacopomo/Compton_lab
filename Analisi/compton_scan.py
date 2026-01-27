@@ -164,6 +164,7 @@ def main():
     plt.errorbar(angles, mu1, xerr=theta_err, yerr=mu1_err, label="μ₁ (1180 keV)", fmt="o", capsize=3, color="C0")
     plt.errorbar(angles, mu2, xerr=theta_err, yerr=mu2_err, label="μ₂ (1330 keV)", fmt="s", capsize=3, color="C1")
 
+    '''
     plt.plot(
         th_plot,
         compton_energy(th_plot, E1, me1),
@@ -178,7 +179,7 @@ def main():
         label=f"Compton 1330 keV (me c²={me2:.0f} keV)",
         color="C1"
     )
-
+    '''
     # plot real compton curves at 511 keV
     plt.plot(
         th_plot,
