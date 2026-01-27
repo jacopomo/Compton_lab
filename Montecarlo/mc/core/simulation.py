@@ -1,8 +1,11 @@
 # mc/core/simulation.py
 
+import os
+import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import mc.utils.plotting as pl
 
 from mc.utils.plotting import plot_photon_positions
 from mc.utils.math3d import generate_random_directions, lift_mask, unpack_stacked
@@ -87,12 +90,14 @@ def cmc(n, phi, save):
     pface = Rectangle(np.array([0,0,DCP-0.1]), WP, HP, 0)
     plastic = RectPrism(pface, LP+0.1, material=C)
 
-    E_th_plastic = np.random.normal(60.0, 15.0, len(photonpool.alive))
+    photonpool.E_depo_in_plastic = photonpool.energy.copy() # initialize energy deposit tracking
+    E_th_plastic = 0 # np.random.normal(60.0, 15.0, len(photonpool.alive))
     exit_base_mask = photonpool.force_one_scatter_moveto(plastic, E_th=E_th_plastic)
     exit_front_mask = photonpool.pos[:,2] > DCP-0.1+LP-1e-3
     hit_plastic_front_mask = exit_base_mask & exit_front_mask
     photonpool.alive[~hit_plastic_front_mask] = False
     photonpool.compact() # remove dead
+    photonpool.E_depo_in_plastic = photonpool.E_depo_in_plastic - photonpool.energy
     alive_n = photonpool.alive.sum() 
     print(f"{alive_n} photons have exited the front face of the plastic ({round(alive_n*100/n,2)}% of original)")
     #plot_photon_positions(photonpool.pos)
@@ -139,7 +144,7 @@ def cmc(n, phi, save):
     # Force at least one scatter within the detector, pe or compton
     # When photons leave note their energy and calculate energy deposited
     analyzed_n = photonpool.alive.sum()
-    E_th_crystal = np.random.normal(700.0, 25.0, len(photonpool.alive))
+    E_th_crystal = 0 #np.random.normal(700.0, 25.0, len(photonpool.alive))
     E_deposited = photonpool.force_first_then_transport(crystal, E_th=E_th_crystal)
     
     alive_mask = photonpool.alive # photons who passed the threshold
@@ -158,6 +163,22 @@ def cmc(n, phi, save):
     plt.ylabel("Counts")
     plt.show()
 
+    lost_energies = photonpool.E_depo_in_plastic[alive_mask]
+    H, xedges, yedges, _, _ = pl.hist2d(E_deposited, lost_energies, bins=1000, weights=weightss, title="Istogramma finale dell'energia depositata nel cristallo vs quella nel plastico", cmap="viridis")
+
     if save:
-        save_histogram(E_deposited, weightss, phi)
-        save_csv(E_deposited, phi)
+        degPHI = str(int(np.degrees(phi)))
+        file_name = degPHI + 'deg.h5'
+
+        path_dir = os.path.join('results', '2d_histograms')
+        os.makedirs(path_dir, exist_ok=True)
+
+        path_file = os.path.join(path_dir, file_name)
+
+        with h5py.File(path_file, 'w') as f:
+            print("\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            print("\nOutput file .h5 saved in Montecarlo/results.\n")
+            print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
+            f.create_dataset('H', data=H)
+            f.create_dataset('xedges', data=xedges)
+            f.create_dataset('yedges', data=yedges)

@@ -14,8 +14,9 @@ class Photons:
         self.energy = np.zeros(N, dtype=np.float64)         # (N,)
         self.weight = np.ones(N, dtype=np.float64)          # (N,)
         self.alive = np.ones(N, dtype=bool)                 # (N,)
+        self.E_depo_in_plastic = np.zeros(N, dtype=np.float64)  # (N,)
 
-    def append(self, pos, direc, energy, weight=None, alive=None):
+    def append(self, pos, direc, energy, weight=None, E_depo_in_plastic=None, alive=None):
         """Adds a new batch of photons to the photon pool, useful for splitting
 
         Args:
@@ -23,6 +24,7 @@ class Photons:
             direc (nparray): (M,3) or (3,) photon directions
             energy (nparray): (M,) photon energies
             weight (nparray, optional): photon weights. Defaults to None.
+            E_depo_in_plastic (nparray, optional): energy deposited in plastic. Defaults to None.
             alive (nparray, optional): photon state. Defaults to None.
         """
         # pos: (M,3) or (3,), dir similar, energy: (M,)
@@ -34,11 +36,14 @@ class Photons:
             weight = np.ones(M, dtype=self.energy.dtype)
         if alive is None:
             alive = np.ones(M, dtype=bool)
+        if E_depo_in_plastic is None:
+            E_depo_in_plastic = np.zeros(M, dtype=self.energy.dtype)
         self.pos = np.vstack([self.pos, pos])
         self.direc = np.vstack([self.direc, direc])
         self.energy = np.concatenate([self.energy, energy])
         self.weight = np.concatenate([self.weight, weight])
         self.alive = np.concatenate([self.alive, alive])
+        self.E_depo_in_plastic = np.concatenate([self.E_depo_in_plastic, E_depo_in_plastic])
 
     def compact(self):
         """Removes dead photons to keep arrays small
@@ -48,6 +53,7 @@ class Photons:
         self.direc = self.direc[keep]
         self.energy = self.energy[keep]
         self.weight = self.weight[keep]
+        self.E_depo_in_plastic = self.E_depo_in_plastic[keep]
         self.alive = np.ones(len(self.energy), dtype=bool)
 
     def split(self, n):
@@ -66,6 +72,7 @@ class Photons:
         energy_new = np.repeat(self.energy, n - 1)
         weight_new = np.repeat(self.weight, n - 1)
         alive_new  = np.repeat(self.alive,  n - 1)
+        E_depo_in_plastic_new = np.repeat(self.E_depo_in_plastic, n - 1)
 
         # --- append ---
         self.append(
@@ -73,6 +80,7 @@ class Photons:
             direc=direc_new,
             energy=energy_new,
             weight=weight_new,
+            E_depo_in_plastic=E_depo_in_plastic_new,
             alive=alive_new
         )
 
