@@ -17,9 +17,9 @@ def compton_peak(E_gamma, theta_deg):
 # ----------------------------
 # Triple Gaussian model
 # ----------------------------
-def triple_gauss(E, mu1, mu2, mu3, sigma1, sigma2, sigma3, A1, A2, A3):
-    g1 = A1 * np.exp(-(E - mu1)**2 / (2 * sigma1**2))
-    g2 = A2 * np.exp(-(E - mu2)**2 / (2 * sigma2**2))
+def triple_gauss(E, mu1, mu2, mu3, sigma12, sigma3, A1, A2, A3):
+    g1 = A1 * np.exp(-(E - mu1)**2 / (2 * sigma12**2))
+    g2 = A2 * np.exp(-(E - mu2)**2 / (2 * sigma12**2))
     g3 = A3 * np.exp(-(E - mu3)**2 / (2 * sigma3**2))
     return g1 + g2 + g3
 
@@ -27,8 +27,8 @@ def triple_gauss(E, mu1, mu2, mu3, sigma1, sigma2, sigma3, A1, A2, A3):
 # Poisson -2 log L
 # ----------------------------
 def neg2loglike(params, E, data):
-    mu1, mu2, mu3, sigma1, sigma2, sigma3, A1, A2, A3 = params
-    model = triple_gauss(E, mu1, mu2, mu3, sigma1, sigma2, sigma3, A1, A2, A3)
+    mu1, mu2, mu3, sigma12, sigma3, A1, A2, A3 = params
+    model = triple_gauss(E, mu1, mu2, mu3, sigma12, sigma3, A1, A2, A3)
     model = np.clip(model, 1e-12, None)
 
     mask = data > 0 & (E <= 1330.0)
@@ -36,10 +36,6 @@ def neg2loglike(params, E, data):
         np.sum(model - data) +
         np.sum(data[mask] * np.log(data[mask] / model[mask]))
     )
-
-    # weak resolution prior: sigma ~ sqrt(E)
-    nll += ((sigma1 - np.sqrt(mu1)) / (0.5 * np.sqrt(mu1)))**2
-    nll += ((sigma2 - np.sqrt(mu2)) / (0.5 * np.sqrt(mu2)))**2
 
     return nll
 
@@ -113,8 +109,7 @@ def main():
     if mu3_0 > mu1_0:
         mu3_0, mu1_0 = mu1_0, mu3_0
 
-    sigma1_0 = np.sqrt(mu1_0)
-    sigma2_0 = np.sqrt(mu2_0)
+    sigma12_0 = np.sqrt(mu1_0)
     sigma3_0 = np.sqrt(mu3_0)
 
     A1_0 = 0.5 * np.max(counts)
@@ -125,22 +120,20 @@ def main():
         mu1_0,
         mu2_0,
         mu3_0,
-        sigma1_0,
-        sigma2_0,
+        sigma12_0,
         sigma3_0,
         A1_0,
         A2_0,
         A3_0
     ]
     print("Initial guesses:")
-    for n, v in zip(["mu1", "mu2", "mu3", "sigma1", "sigma2", "sigma3", "A1", "A2", "A3"], x0):
+    for n, v in zip(["mu1", "mu2", "mu3", "sigma12", "sigma3", "A1", "A2", "A3"], x0):
         print(f"  {n}: {v:.3f}")
 
     bounds = [
         (energy.min(), energy.max()),   # mu1
         (mu1_0, energy.max()),           # mu2 > mu1
         (mu3_0, mu1_0),                 # mu3 < mu1
-        (1e-3, None),
         (1e-3, None),
         (1e-3, None),
         (1e-6, None),
@@ -195,11 +188,11 @@ def main():
         import matplotlib.gridspec as gridspec
 
         Eplot = np.linspace(energy.min(), energy.max(), 2000)
-        mu1, mu2, mu3, sigma1, sigma2, sigma3, A1, A2, A3 = res.x
+        mu1, mu2, mu3, sigma12, sigma3, A1, A2, A3 = res.x
 
-        model = triple_gauss(Eplot, mu1, mu2, mu3, sigma1, sigma2, sigma3, A1, A2, A3)
-        g1 = A1 * np.exp(-(Eplot - mu1)**2 / (2 * sigma1**2))
-        g2 = A2 * np.exp(-(Eplot - mu2)**2 / (2 * sigma2**2))
+        model = triple_gauss(Eplot, mu1, mu2, mu3, sigma12, sigma3, A1, A2, A3)
+        g1 = A1 * np.exp(-(Eplot - mu1)**2 / (2 * sigma12**2))
+        g2 = A2 * np.exp(-(Eplot - mu2)**2 / (2 * sigma12**2))
         g3 = A3 * np.exp(-(Eplot - mu3)**2 / (2 * sigma3**2))
 
         # Poisson errors
@@ -207,7 +200,7 @@ def main():
         yerr[yerr == 0] = 1.0  # avoid zero error bars
 
         # Residuals: (data - model) / sqrt(data)
-        model_at_bins = triple_gauss(energy, mu1, mu2, mu3, sigma1, sigma2, sigma3, A1, A2, A3)
+        model_at_bins = triple_gauss(energy, mu1, mu2, mu3, sigma12, sigma3, A1, A2, A3)
         residuals = (counts - model_at_bins) / np.where(counts > 0, np.sqrt(counts), 1.0)
 
         fig = plt.figure(figsize=(8, 6))
@@ -220,6 +213,7 @@ def main():
         ax0.plot(Eplot, g1, 'r--', alpha=0.7, label="Gaussian 1")
         ax0.plot(Eplot, g2, 'r:', alpha=0.7, label="Gaussian 2")
         ax0.plot(Eplot, g3, 'b-.', alpha=0.7, label="Spalla Compton")
+        ax0.vlines([mu1, mu2], ymax=max(counts), ymin=min(counts), colors=['red', 'red'])
         ax0.set_ylabel("Counts")
         ax0.legend()
         plt.title(f"Triple Gaussian fit ({deg} deg)")
