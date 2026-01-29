@@ -71,14 +71,17 @@ def gauss_cdf(x, mu, sigma):
 # Forward model
 # ----------------------------
 def model_projection(params, H, xcenters, ycenters):
-    mu_x, sig_x, mu_y, sig_y = params
+    mu_x, sig_x, mu_y, sig_y, A = params
+
+    B = 0
 
     fx = gauss_cdf(xcenters, mu_x, sig_x)[:, None] 
-    fy = gauss_cdf(ycenters, mu_y, sig_y)[None, :] 
+    fy = ((1-B)*gauss_cdf(ycenters, mu_y, sig_y) + B)[None, :] 
 
     Hf = (H * fx * fy).sum(axis=1) # sum over plastic (y)
-    Hfn = Hf/(Hf.sum()) # normalized histogram
-    return Hfn  
+    Hfn = Hf/(Hf.max()) # normalized histogram
+    Hfin = A*Hfn
+    return Hfin
 
 
 # ----------------------------
@@ -179,29 +182,33 @@ def main():
 
     # Bin data onto new MC x-binning
     data_binned, _ = np.histogram(data_energy, bins=xedges, weights=data_counts)
-    data_binned = data_binned/data_binned.sum()
     
     # ----------------------------
     # Apply crystal energy smearing
     # ----------------------------
     H_raw = H.copy()
     H = smear_crystal_axis(H, xcenters, a, b, c)
+    #H = H_raw
 
     # ----------------------------
     # Fit
     # ----------------------------
+    A0 = max(data_binned)
+    
     x0 = [
-        700.0,  # mu_x
-        25,       # sig_x
-        80.5,  # mu_y
-        7.5       # sig_y
+        700.0,      # mu_x
+        25,         # sig_x
+        90,       # mu_y
+        20,        # sig_y
+        A0           # Maximum peak high
     ]
 
     bounds = [
         (650, 800),
-        (10, 100),
-        (60, 100),
-        (5, 20)
+        (10, 30),
+        (80, 100),
+        (5, 70),
+        (A0 - 5*np.sqrt(A0), A0 + 5*np.sqrt(A0))
     ]
 
     res = minimize(
@@ -212,17 +219,23 @@ def main():
         bounds=bounds,
     )
 
-
+    success = res.success
+    print(".............................................")
+    print(f"Succes Fut: {success}")
+    print("'''''''''''''''''''''''''''''''''''''''''''''")
     best_params = res.x
 
     # Best-fit filtered histograms
-    mu_x, sig_x, mu_y, sig_y= best_params
+    mu_x, sig_x, mu_y, sig_y, A= best_params
 
-    H_proj = model_projection([730, 30, 170, 20], H, xcenters, ycenters)
+    #H_proj = model_projection(best_params, H, xcenters, ycenters)
+    H_proj = model_projection([735, 25, 275, 40, 7000], H, xcenters, ycenters)
 
     fx = gauss_cdf(xcenters, mu_x, sig_x)[:, None] 
     fy = gauss_cdf(ycenters, mu_y, sig_y)[None, :]
     H_filtered = (H * fx * fy)
+
+    H_raw_proj = model_projection(best_params, H_raw, xcenters, ycenters)
 
     # ----------------------------
     # Results
@@ -232,12 +245,12 @@ def main():
     print("Message:", res.message)
     print()
 
-    names = ["mu_x", "sigma_x", "mu_y", "sigma_y"]
+    names = ["mu_x", "sigma_x", "mu_y", "sigma_y", "A"]
     cov = res.hess_inv.todense()
     errs = np.sqrt(np.diag(cov))
 
-    for n, v, e in zip(names, res.x, errs):
-        print(f"{n:8s} = {v:.4g} ± {e:.4g}")
+    for n, v, e, b in zip(names, res.x, errs, bounds):
+        print(f"{n:8s} = {v:.4g} ± {e:.4g}  ({e/v*100:.2g} % relative error) [{b}]")
 
     # ----------------------------
     # Goodness of fit
@@ -326,8 +339,15 @@ def main():
             H_proj,
             where="mid",
             label="MC (filtered)",
-            linewidth=1.5
+            linewidth=2.5
         )
+        #plt.step(
+        #    xcenters,
+        #    H_raw_proj,
+        #    where="mid",
+        #    label="MC_raw (filtered)",
+        #    linewidth=1,
+        #)
         plt.xlabel("Energy in crystal")
         plt.ylabel("Probability")
         plt.title(f"Crystal energy spectrum ({deg} deg)")

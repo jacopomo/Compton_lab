@@ -23,7 +23,7 @@ rate1 = pmt1/delta_t
 rate2 = pmt2/delta_t
 rate_both = both/delta_t
 
-sigma_rate1 = np.sqrt(pmt1)/delttaua_t
+sigma_rate1 = np.sqrt(pmt1)/delta_t
 sigma_rate2 = np.sqrt(pmt2)/delta_t
 sigma_rateboth = np.sqrt(both)/delta_t
 
