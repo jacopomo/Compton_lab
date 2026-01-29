@@ -94,20 +94,7 @@ files = [
     "40deg_031225_EnergieC.txt",
 ]
 
-theta_err = np.array([
-    5.34,  # 0 deg
-    5.73,  # 10
-    5.97,  # 15
-    5.97,  # 15
-    5.99,  # 20
-    6.13,  # 25
-    6.21,  # 30
-    6.21,  # 30
-    6.08,  # 35
-    6.12,  # 40
-])
-
-theta_err /= 2.0  # use half-width error
+theta_err = np.full(angles.shape, 2.198)  
 
 use_triple = np.array([
     True,  # 0 deg
