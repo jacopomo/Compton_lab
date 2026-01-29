@@ -1,0 +1,169 @@
+{
+"0deg_261125_EnergieC.txt": {
+    "degree": 0,
+    "theta_error": 2.198,
+    "model": "triple",
+    "init": {
+    "mu1": 1323,
+    "mu2": 1177,
+    "mu3": 850,
+    "sigma1": 40,
+    "sigma2": 37,
+    "sigma3": 100,
+    "A1": 50,
+    "A2": 75,
+    "A3": 50,
+    "E_cutoff": 1500.0
+    }
+},
+
+"10deg_041225_EnergieC.txt": {
+    "degree": 10,
+    "theta_error": 2.198,
+    "model": "triple",
+    "init": {
+    "mu1": 1279,
+    "mu2": 1120,
+    "mu3": 850,
+    "sigma1": 35,
+    "sigma2": 26,
+    "sigma3": 30,
+    "A1": 150,
+    "A2": 113,
+    "A3": 150,
+    "E_cutoff": 1500.0
+    }
+},
+
+"15deg_111225_EnergieC.txt": {
+    "degree": 15,
+    "theta_error": 2.198,
+    "model": "triple",
+    "init": {
+    "mu1": 1222,
+    "mu2": 1090,
+    "mu3": 872,
+    "sigma1": 24,
+    "sigma2": 26,
+    "sigma3": 30,
+    "A1": 300,
+    "A2": 200,
+    "A3": 180,
+    "E_cutoff": 1400.0
+    }
+},
+
+"15deg_251125_EnergieC.txt": {
+    "degree": 15,
+    "theta_error": 2.198,    
+    "model": "triple",
+    "init": {
+    "mu1": 1222,
+    "mu2": 1090,
+    "mu3": 850,
+    "sigma1": 24,
+    "sigma2": 26,
+    "sigma3": 30,
+    "A1": 450,
+    "A2": 400,
+    "A3": 300,
+    "E_cutoff": 1400.0
+    }
+},
+
+"20deg_251125_EnergieC.txt": {
+    "degree": 20,
+    "theta_error": 2.198,
+    "model": "triple",
+    "init": {
+    "mu1": 1150,
+    "mu2": 1030,
+    "mu3": 807,
+    "sigma1": 51,
+    "sigma2": 54,
+    "sigma3": 50,
+    "A1": 456,
+    "A2": 612,
+    "A3": 322,
+    "E_cutoff": 1400.0
+    }
+},
+
+"25deg_261125_EnergieC.txt": {
+    "degree": 25,
+    "theta_error": 2.198,
+    "model": "triple",
+    "init": {
+    "mu1": 1067,
+    "mu2": 970,
+    "mu3": 750,
+    "sigma1": 24,
+    "sigma2": 26,
+    "sigma3": 26,
+    "A1": 6000,
+    "A2": 5000,
+    "A3": 3140,
+    "E_cutoff": 1200.0
+    }
+},
+
+"30deg_021225_EnergieC.txt": {
+    "degree": 30,
+    "theta_error": 2.198,
+    "model": "double",
+    "init": {
+    "mu1": 980,
+    "mu2": 886,
+    "sigma1": 24,
+    "sigma2": 26,
+    "A1": 800,
+    "A2": 800,
+    "E_cutoff": 1200.0
+    }
+},
+
+"30deg_201125_EnergieC.txt": {
+    "degree": 30,
+    "theta_error": 2.198,
+    "model": "double",
+    "init": {
+    "mu1": 980,
+    "mu2": 886,
+    "sigma1": 24,
+    "sigma2": 26,
+    "A1": 800,
+    "A2": 800,
+    "E_cutoff": 1200.0
+    }
+},
+
+"35deg_271125_EnergieC.txt": {
+    "degree": 35,
+    "theta_error": 2.198,
+    "model": "double",
+    "init": {
+    "mu1": 913,
+    "mu2": 820,
+    "sigma1": 24,
+    "sigma2": 26,
+    "A1": 600,
+    "A2": 600,
+    "E_cutoff": 1100.0
+    }
+},
+
+"40deg_031225_EnergieC.txt": {
+    "degree": 40,
+    "theta_error": 2.198,
+    "model": "double",
+    "init": {
+    "mu1": 830,
+    "mu2": 760,
+    "sigma1": 25,
+    "sigma2": 25,
+    "A1": 3000,
+    "A2": 3000,
+    "E_cutoff": 1000.0
+    }
+}
+}
