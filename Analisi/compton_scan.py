@@ -7,9 +7,11 @@ import re
 from pathlib import Path
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+import json
 
-E1 = 1180.0
-E2 = 1330.0
+E1 = 1332.0
+E2 = 1173.0
+ME_C2 = 511.0  # keV
 
 # ----------------------------
 # Compton formula
@@ -27,17 +29,14 @@ def dcompton_dtheta(theta_deg, E0, me_c2):
 # ----------------------------
 # Extract fit results from gauss_fit.py
 # ----------------------------
-def gauss_fit(script, deg, filename, bins=120, trip=False):
+def gauss_fit(script, filepath, bins=120):
     cmd = [
         sys.executable,
         str(script),
-        filename,
+        filepath,
         "-b",
         str(bins),
     ]
-
-    if trip:
-        cmd += ["-t"]
 
     out = subprocess.check_output(cmd, text=True)
 
@@ -58,70 +57,25 @@ def gauss_fit(script, deg, filename, bins=120, trip=False):
     mu1_err = extract_err("mu1")
     mu2_err = extract_err("mu2")
 
-    # Effective uncertainties including theta errors
-    sigma_mu1_eff = np.sqrt(
-        mu1_err**2 +
-        (dcompton_dtheta(angles, E1, 511.0) * theta_err)**2
-    )
-
-    sigma_mu2_eff = np.sqrt(
-        mu2_err**2 +
-        (dcompton_dtheta(angles, E2, 511.0) * theta_err)**2
-    )
-
-
-    return mu1, mu2, mu1_err, mu2_err, sigma_mu1_eff, sigma_mu2_eff
+    return mu1, mu2, mu1_err, mu2_err
 
 # ----------------------------
 # Main
 # ----------------------------
 
-# ----------------------------
-# DEFS
-# ----------------------------
-angles = np.array([0, 10, 15, 15, 20, 25, 30, 30, 35, 40], dtype=float)
-
-files = [
-    "0deg_261125_EnergieC.txt",
-    "10deg_041225_EnergieC.txt",
-    "15deg_111225_EnergieC.txt",
-    "15deg_251125_EnergieC.txt",
-    "20deg_251125_EnergieC.txt",
-    "25deg_261125_EnergieC.txt",
-    "30deg_021225_EnergieC.txt",
-    "30deg_201125_EnergieC.txt",
-    "35deg_271125_EnergieC.txt",
-    "40deg_031225_EnergieC.txt",
-]
-
-theta_err = np.full(angles.shape, 2.198)  
-
-use_triple = np.array([
-    True,  # 0 deg
-    True,  # 10
-    True,   # 15
-    True,   # 15
-    True,   # 20
-    False,  # 25
-    False,  # 30
-    False,  # 30
-    False,  # 35
-    False,  # 40
-], dtype=bool)
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    dg_script = root / "Analisi" / "gauss_fit.py"
-
-    data_dir = (
-        root
-        / "Dati"
-        / "Measures"
-        / "Angles"
-        / "Calibrati"
-    )
     
+    fit_script = root / "Analisi" / "gauss_fit.py"
+    data_dir = root / "Dati" / "Measures" / "Angles" / "Calibrati"
+    config_path = root / "Analisi" / "fit_config.json"
 
+    with open(config_path) as f:
+        config = json.load(f)
+
+    angles = []
+    theta_err = []
     mu1_list = []
     mu2_list = []
     mu1_err_list = []
@@ -130,18 +84,44 @@ def main():
 
 
     print("Running Gaussian fits:")
-    for deg, fname, trip in zip(angles, files, use_triple):
-        print(f"  {deg} deg | Triple Gaussian: {trip}")
-        mu1, mu2, mu1_err, mu2_err, sigma_mu1_eff, sigma_mu2_eff = gauss_fit(dg_script, deg, str(data_dir / fname), trip=trip)
+    for fname, cfg in config.items():
+        deg = cfg["degree"]
+        sigma_theta = cfg["theta_error"]
+        use_triple = (cfg.get("model", "double") == "triple")
+
+        print(f"  {deg:>3} deg | triple={use_triple} | {fname}")
+
+        mu1, mu2, mu1_err, mu2_err = gauss_fit(
+            fit_script,
+            data_dir / fname
+        )
+        # collect results from this fit
+        angles.append(deg)
+        theta_err.append(sigma_theta)
         mu1_list.append(mu1)
         mu2_list.append(mu2)
         mu1_err_list.append(mu1_err)
         mu2_err_list.append(mu2_err)
 
+    angles = np.array(angles)
+    theta_err = np.array(theta_err)
     mu1 = np.array(mu1_list)
     mu2 = np.array(mu2_list)
     mu1_err = np.array(mu1_err_list)
     mu2_err = np.array(mu2_err_list)
+
+    # ----------------------------
+    # Effective uncertainties
+    # ----------------------------
+    sigma_mu1_eff = np.sqrt(
+        mu1_err**2 +
+        (dcompton_dtheta(angles, E1, ME_C2) * theta_err)**2
+    )
+
+    sigma_mu2_eff = np.sqrt(
+        mu2_err**2 +
+        (dcompton_dtheta(angles, E2, ME_C2) * theta_err)**2
+    )
 
 
     # ----------------------------
@@ -154,7 +134,7 @@ def main():
         mu1,
         sigma=sigma_mu1_eff,
         absolute_sigma=True,
-        p0=[511.0]
+        p0=[ME_C2]
     )
 
     popt2, pcov2 = curve_fit(
@@ -163,7 +143,7 @@ def main():
         mu2,
         sigma=sigma_mu2_eff,
         absolute_sigma=True,
-        p0=[511.0]
+        p0=[ME_C2]
     )
 
     me1 = popt1[0]
