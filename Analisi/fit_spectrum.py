@@ -237,6 +237,8 @@ def main():
 
     H_raw_proj = model_projection(best_params, H_raw, xcenters, ycenters)
 
+    H_raw_proj = model_projection(best_params, H_raw, xcenters, ycenters)
+
     # ----------------------------
     # Results
     # ----------------------------
@@ -266,8 +268,12 @@ def main():
     print(f"p-value = {pval:.3f}")
 
     print(f"\ncov =\n")
+
+
+
     for j in range(len(cov[:, 0])):
         print([f"{x/(errs[i] * errs[j]):.2f}  " for i,x in enumerate(cov[j, :])])
+
 
 
     # ----------------------------

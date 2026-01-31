@@ -104,6 +104,8 @@ def imc(n, PHI, bins_output, view, debug, save):
     weight = (w * _weight/np.max(w * _weight))
 
     if debug:
+        theta_var = np.std(np.degrees(np.arccos(cos_theta)))
+        print(f"Standard deviation of angle = {theta_var:.10f} deg")
         pl.compare_weighted_unweighted_histogram(np.degrees(np.arccos(cos_theta)),weight, bins=100)
         pl.scatter_xy(cos_theta, final_energies, lines=[lambda x, mu=mu: compton(mu, x) for mu in [E1, E2]], N_max=1000, title="Scatter di energia vs angolo per i fotoni uscenti dal plastico.")
         pl.scatter_xy(cos_theta, _weight, lines=[lambda x, mu=mu: kn(mu, x) for mu in [E1, E2]], N_max=1000, title="Scatter di peso vs angolo.")
@@ -136,6 +138,7 @@ def imc(n, PHI, bins_output, view, debug, save):
 
     if view or debug:
         pl.plot_histogram(energies_depo, weights=final_weight, bins=bins_output, title="Spettro dell'energia depositata nel NaI")
+
 
 
     if save:

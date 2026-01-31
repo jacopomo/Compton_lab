@@ -28,12 +28,18 @@ sigma_rate2 = np.sqrt(pmt2)/delta_t
 sigma_rateboth = np.sqrt(both)/delta_t
 
 rate_acc = rate1 * rate2 * tau
+sigma_rate_acc = np.sqrt(1/pmt2 + 1/pmt1) * rate_acc
 
+rate_diff = rate_both - rate_acc
+sigma_diff = np.sqrt(sigma_rateboth**2 + sigma_rate_acc**2)
+
+print(sigma_diff)
 
 fig, ax1 = plt.subplots()
 
 ax1.errorbar(deg, rate_both*1e3, yerr=sigma_rateboth*1e3, fmt='.', label='Rate coincidenze')
-ax1.errorbar(deg, rate_acc*1e3, fmt='.', label='Rate accidentali')
+#ax1.errorbar(deg, rate_acc*1e3, yerr=sigma_rate_acc*1e3, fmt='.', label='Rate accidentali')
+ax1.errorbar(deg, rate_diff*1e3, yerr=sigma_diff*1e3, fmt='.', label='Differenza')
 
 ax1.set_ylabel('Rate delle coincidenze [#/s]')
 ax1.set_xlabel('Angolo [deg]')

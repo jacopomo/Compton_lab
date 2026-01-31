@@ -25,5 +25,8 @@ plt.xlabel(f'Canale')
 plt.ylabel('Conteggi (Scala {loglabel})')
 if scale_log:
     plt.yscale('log')
-count = plt.hist(unbinned, bins=num_bins, histtype='step')
+count, _, _ = plt.hist(unbinned, bins=num_bins, histtype='step')
+
+print(f"N = {count.sum()}")
+
 plt.show()

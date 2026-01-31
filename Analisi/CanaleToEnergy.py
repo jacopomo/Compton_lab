@@ -6,7 +6,7 @@ import re
 # --------------------------------------------------
 # Paths (relative to parent directory)
 # --------------------------------------------------
-BASE_DIR = Path.cwd()  # run from parent parent directory
+BASE_DIR = Path.cwd().parent  # run from parent parent directory
 DATA_DIR = BASE_DIR / "Dati" / "Measures" / "Angles"
 CALIB_FILE = BASE_DIR / "Dati" / "Calibration" / "Processed" / "calibration_table.json"
 OUTPUT_DIR = DATA_DIR / "Calibrati"

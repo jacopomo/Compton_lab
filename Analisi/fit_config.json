@@ -1,0 +1,144 @@
+{
+"0deg_091225_EnergieC.txt": {
+    "degree": 0,
+    "bins": 500,
+    "theta_error": 3.116,
+    "model": "triple",
+    "init": {
+    "mu1": 1332.5,
+    "mu2": 1173.2,
+    "mu3": 890,
+    "sigma1": 40,
+    "sigma2": 37,
+    "sigma3": 100,
+    "A1": 50,
+    "A2": 50,
+    "A3": 75,
+    "E_cutoff": 1500.0
+    }
+},
+
+"10deg_041225_EnergieC.txt": {
+    "degree": 10,
+    "bins": 300,
+    "theta_error": 4.697,
+    "model": "triple",
+    "init": {
+    "mu1": 1279,
+    "mu2": 1120,
+    "mu3": 850,
+    "sigma1": 35,
+    "sigma2": 26,
+    "sigma3": 30,
+    "A1": 150,
+    "A2": 113,
+    "A3": 150,
+    "E_cutoff": 1500.0
+    }
+},
+
+"15deg_251125_EnergieC.txt": {
+    "degree": 15,
+    "bins": 500,
+    "theta_error": 4.973,    
+    "model": "triple",
+    "init": {
+    "mu1": 1222,
+    "mu2": 1090,
+    "mu3": 850,
+    "sigma1": 24,
+    "sigma2": 26,
+    "sigma3": 30,
+    "A1": 450,
+    "A2": 400,
+    "A3": 300,
+    "E_cutoff": 1400.0
+    }
+},
+
+"20deg_251125_EnergieC.txt": {
+    "degree": 20,
+    "bins": 200,
+    "theta_error": 5.038,
+    "model": "triple",
+    "init": {
+    "mu1": 1060,
+    "mu2": 980,
+    "mu3": 807,
+    "sigma1": 51,
+    "sigma2": 54,
+    "sigma3": 50,
+    "A1": 456,
+    "A2": 612,
+    "A3": 322,
+    "E_cutoff": 1400.0
+    }
+},
+
+"25deg_261125_EnergieC.txt": {
+    "degree": 25,
+    "bins": 300,
+    "theta_error": 5.053,
+    "model": "triple",
+    "init": {
+    "mu1": 1000,
+    "mu2": 970,
+    "mu3": 780,
+    "sigma1": 40,
+    "sigma2": 40,
+    "sigma3": 40,
+    "A1": 2500,
+    "A2": 4000,
+    "A3": 700,
+    "E_cutoff": 1200.0
+    }
+},
+
+"30deg_021225_EnergieC.txt": {
+    "degree": 30,
+    "bins": 200,
+    "theta_error": 5.042,
+    "model": "double",
+    "init": {
+    "mu1": 900,
+    "mu2": 850,
+    "sigma1": 80,
+    "sigma2": 80,
+    "A1": 250,
+    "A2": 600,
+    "E_cutoff": 1200.0
+    }
+},
+
+"35deg_271125_EnergieC.txt": {
+    "degree": 35,
+    "bins": 300,
+    "theta_error": 5.025,
+    "model": "double",
+    "init": {
+    "mu1": 913,
+    "mu2": 820,
+    "sigma1": 24,
+    "sigma2": 26,
+    "A1": 600,
+    "A2": 600,
+    "E_cutoff": 1100.0
+    }
+},
+
+"40deg_031225_EnergieC.txt": {
+    "degree": 40,
+    "bins": 300,
+    "theta_error": 5.003,
+    "model": "double",
+    "init": {
+    "mu1": 830,
+    "mu2": 760,
+    "sigma1": 25,
+    "sigma2": 25,
+    "A1": 3000,
+    "A2": 3000,
+    "E_cutoff": 1000.0
+    }
+}
+}
