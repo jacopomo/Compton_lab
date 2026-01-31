@@ -29,14 +29,14 @@ def dcompton_dtheta(theta_deg, E0, me_c2):
 # ----------------------------
 # Extract fit results from gauss_fit.py
 # ----------------------------
-def gauss_fit(script, filepath, bins=120):
+def gauss_fit(script, filepath, vis=False):
     cmd = [
         sys.executable,
         str(script),
         filepath,
-        "-b",
-        str(bins),
     ]
+    if vis:
+        cmd = cmd + ["-v"]
 
     out = subprocess.check_output(cmd, text=True)
 
@@ -86,14 +86,16 @@ def main():
     print("Running Gaussian fits:")
     for fname, cfg in config.items():
         deg = cfg["degree"]
-        sigma_theta = cfg["theta_error"]
+        #sigma_theta = cfg["theta_error"]
+        sigma_theta = 0.7
         use_triple = (cfg.get("model", "double") == "triple")
 
         print(f"  {deg:>3} deg | triple={use_triple} | {fname}")
 
         mu1, mu2, mu1_err, mu2_err = gauss_fit(
             fit_script,
-            data_dir / fname
+            data_dir / fname,
+            False
         )
         # collect results from this fit
         angles.append(deg)
@@ -103,12 +105,14 @@ def main():
         mu1_err_list.append(mu1_err)
         mu2_err_list.append(mu2_err)
 
+    alpha = 5364/5218
+
     angles = np.array(angles)
     theta_err = np.array(theta_err)
-    mu1 = np.array(mu1_list)
-    mu2 = np.array(mu2_list)
-    mu1_err = np.array(mu1_err_list)
-    mu2_err = np.array(mu2_err_list)
+    mu1 = np.array(mu1_list) * alpha
+    mu2 = np.array(mu2_list) * alpha
+    mu1_err = np.array(mu1_err_list) * alpha
+    mu2_err = np.array(mu2_err_list) * alpha
 
     # ----------------------------
     # Effective uncertainties
@@ -123,65 +127,21 @@ def main():
         (dcompton_dtheta(angles, E2, ME_C2) * theta_err)**2
     )
 
-
-    # ----------------------------
-    # Fit Compton curves
-    # ----------------------------
-
-    popt1, pcov1 = curve_fit(
-        lambda th, me: compton_energy(th, E1, me),
-        angles,
-        mu1,
-        sigma=sigma_mu1_eff,
-        absolute_sigma=True,
-        p0=[ME_C2]
-    )
-
-    popt2, pcov2 = curve_fit(
-        lambda th, me: compton_energy(th, E2, me),
-        angles,
-        mu2,
-        sigma=sigma_mu2_eff,
-        absolute_sigma=True,
-        p0=[ME_C2]
-    )
-
-    me1 = popt1[0]
-    me2 = popt2[0]
-    me1_err = np.sqrt(pcov1[0,0])
-    me2_err = np.sqrt(pcov2[0,0])
-
-    print("\n=== COMPTON FIT RESULTS ===")
-    print(f"me c^2 (1180 keV line) = {me1:.1f} ± {me1_err:.1f} keV")
-    print(f"me c^2 (1330 keV line) = {me2:.1f} ± {me2_err:.1f} keV")
-
     # ----------------------------
     # Plot with fits and error bars
     # ----------------------------
+    # Esegui il linspace per i valori di angolo
     th_plot = np.linspace(angles.min(), angles.max(), 500)
 
-    plt.figure(figsize=(7, 5))
-    plt.errorbar(angles, mu1, xerr=theta_err, yerr=mu1_err, label="μ₁ (1180 keV)", fmt="o", capsize=3, color="C0")
-    plt.errorbar(angles, mu2, xerr=theta_err, yerr=mu2_err, label="μ₂ (1330 keV)", fmt="s", capsize=3, color="C1")
+    # Creiamo due subplots: uno sopra (per i dati) e uno sotto (per i residui)
+    fig, axs = plt.subplots(2, 1, figsize=(7, 10), sharex=True, gridspec_kw={'height_ratios': [3, 1]})
 
-    '''
-    plt.plot(
-        th_plot,
-        compton_energy(th_plot, E1, me1),
-        "--",
-        label=f"Compton 1180 keV (me c²={me1:.0f} keV)",
-        color="C0"
-    )
-    plt.plot(
-        th_plot,
-        compton_energy(th_plot, E2, me2),
-        "--",
-        label=f"Compton 1330 keV (me c²={me2:.0f} keV)",
-        color="C1"
-    )
-    '''
-    # plot real compton curves at 511 keV
-    plt.plot(
+    # Plot dei dati nel primo subplot
+    axs[0].errorbar(angles, mu1, xerr=theta_err, yerr=mu1_err, label="μ₁ (1180 keV)", fmt=".", capsize=3, color="C0")
+    axs[0].errorbar(angles, mu2, xerr=theta_err, yerr=mu2_err, label="μ₂ (1330 keV)", fmt=".", capsize=3, color="C1")
+
+    # Plot delle curve teoriche nel primo subplot
+    axs[0].plot(
         th_plot,
         compton_energy(th_plot, E1, 511.0),
         ":",
@@ -189,7 +149,7 @@ def main():
         color="black",
         alpha=0.5
     )
-    plt.plot(
+    axs[0].plot(
         th_plot,
         compton_energy(th_plot, E2, 511.0),
         ":",
@@ -198,11 +158,28 @@ def main():
         alpha=0.5
     )
 
+    # Impostazioni del primo subplot
+    axs[0].set_ylabel("Crystal energy μ [keV]")
+    axs[0].set_title("Compton scattering verification")
+    axs[0].legend()
+    axs[0].grid(True, linestyle='--', alpha=0.5)
 
-    plt.xlabel("Scattering angle θ [deg]")
-    plt.ylabel("Crystal energy μ [keV]")
-    plt.title("Compton scattering verification")
-    plt.legend()
+    # Calcolo dei residui per il secondo subplot
+    residuals_mu1 = mu1 - compton_energy(angles, E1, 511.0)
+    residuals_mu2 = mu2 - compton_energy(angles, E2, 511.0)
+
+    # Plot dei residui nel secondo subplot
+    axs[1].errorbar(angles, residuals_mu1, yerr=mu1_err, fmt='.', label="Residuals μ₁", color="C0")
+    axs[1].errorbar(angles, residuals_mu2, yerr=mu2_err, fmt='.', label="Residuals μ₂", color="C1")
+    axs[1].axhline(0, color='gray', linewidth=1.5, linestyle='--')
+
+    # Impostazioni del secondo subplot
+    axs[1].set_xlabel("Scattering angle θ [deg]")
+    axs[1].set_ylabel("Residuals [keV]")
+    axs[1].legend()
+    axs[1].grid(True, linestyle='--', alpha=0.5)
+
+    # Layout
     plt.tight_layout()
     plt.show()
 
