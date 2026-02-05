@@ -14,6 +14,7 @@ import utils as u
 functions_list = {"gauss_exp":{"func":u.gauss_exp, "num peak": 1},
                   "double_gauss_exp":{"func":u.double_gauss_exp, "num peak": 2}}
 
+plt.rcParams.update({'font.size': 20})
 
 # --- 2. FUNZIONE DI FIT ---
 def esegui_fit(bin_centers, counts, config_sorgente, bar_printing=False, visualizzare=False):
@@ -290,10 +291,10 @@ def calibration(day, bar_printing=False, fits=False, bar_visualizzare=False):
 
         ax_top.errorbar(x_val, y_val, xerr=errori_ch, fmt='o', color='blue', label='Punti Sperimentali')
         x_line = np.linspace(0, max(x_val)*1.1, 100)
-        ax_top.plot(x_line, p(x_line), 'r-', label=f'Fit ($R^2$={r2:.5f})')
+        ax_top.plot(x_line, p(x_line), 'r-', label=f'Fit ($1 - R^2$={1-r2:.2e})')
 
         ax_top.set_ylabel("Energia [KeV]")
-        ax_top.set_title(f"Curva di Calibrazione (5 Punti)\nE = {A:.4f}C^2 + ({B:.2f})*C + ({C:.2f})")
+        ax_top.set_title(f"Curva di Calibrazione (5 Punti)\nE = ({A:.1e})C^2 + ({B:.2f})C + ({C:.2f})")
         ax_top.grid(True, linestyle='--', alpha=0.5)
         ax_top.legend()
         
@@ -305,7 +306,7 @@ def calibration(day, bar_printing=False, fits=False, bar_visualizzare=False):
         ax_bottom.axhline(0, linestyle='--')
         ax_bottom.grid(True, linestyle='--', alpha=0.5)
         ax_bottom.set_xlabel("Canale [u.a.]")
-        ax_bottom.set_ylabel("Residui")
+        ax_bottom.set_ylabel("Residui [KeV]")
 
         ax_top.tick_params(axis='x', labelbottom=False)
         ax_bottom.tick_params(top=False)

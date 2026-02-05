@@ -13,6 +13,8 @@ E1 = 1332.0
 E2 = 1173.0
 ME_C2 = 511.0  # keV
 
+plt.rcParams.update({'font.size': 20})
+
 # ----------------------------
 # Compton formula
 # ----------------------------
@@ -105,18 +107,21 @@ def main():
         mu1_err_list.append(mu1_err)
         mu2_err_list.append(mu2_err)
 
-    alpha = 5364/5218
-
     angles = np.array(angles)
     theta_err = np.array(theta_err)
-    mu1 = np.array(mu1_list) * alpha
-    mu2 = np.array(mu2_list) * alpha
-    mu1_err = np.array(mu1_err_list) * alpha
-    mu2_err = np.array(mu2_err_list) * alpha
+    mu1 = np.array(mu1_list)
+    mu2 = np.array(mu2_list)
+    mu1_err = np.array(mu1_err_list)
+    mu2_err = np.array(mu2_err_list)
 
-    # ----------------------------
-    # Effective uncertainties
-    # ----------------------------
+    # -----------------------------
+    # Test del Chi^2
+    # -----------------------------
+
+    # Calcolo dei residui per il secondo subplot
+    residuals_mu1 = mu1 - compton_energy(angles, E1, 511.0)
+    residuals_mu2 = mu2 - compton_energy(angles, E2, 511.0)
+
     sigma_mu1_eff = np.sqrt(
         mu1_err**2 +
         (dcompton_dtheta(angles, E1, ME_C2) * theta_err)**2
@@ -126,6 +131,16 @@ def main():
         mu2_err**2 +
         (dcompton_dtheta(angles, E2, ME_C2) * theta_err)**2
     )
+
+    chi1 = np.sum((residuals_mu1/sigma_mu1_eff)**2)
+    chi2 = np.sum((residuals_mu2/sigma_mu2_eff)**2)
+
+    print("###################################")
+    print("#####  TEST DEL CHI^2   ###########")
+    print("###################################")
+
+    print(f"chi2_mu1 = {chi1}")
+    print(f"chi2_mu2 = {chi2}")
 
     # ----------------------------
     # Plot with fits and error bars
@@ -137,46 +152,46 @@ def main():
     fig, axs = plt.subplots(2, 1, figsize=(7, 10), sharex=True, gridspec_kw={'height_ratios': [3, 1]})
 
     # Plot dei dati nel primo subplot
-    axs[0].errorbar(angles, mu1, xerr=theta_err, yerr=mu1_err, label="μ₁ (1180 keV)", fmt=".", capsize=3, color="C0")
-    axs[0].errorbar(angles, mu2, xerr=theta_err, yerr=mu2_err, label="μ₂ (1330 keV)", fmt=".", capsize=3, color="C1")
+    axs[0].errorbar(angles, mu1, xerr=theta_err, yerr=mu1_err, label="μ₁ (1332.5 keV)", fmt="o", markersize = 10, linewidth=5, capsize=5, capthick=2, color="C0")
+    axs[0].errorbar(angles, mu2, xerr=theta_err, yerr=mu2_err, label="μ₂ (1173.2 keV)", fmt="o", markersize = 10, capsize=5, linewidth=5, capthick=2, color="C1")
+
+    axs[0].text(5, 1280, f"χ² / ndof: {chi1/8:.1f}", color="midnightblue")
+    axs[0].text(3, 1150, f"χ² / ndof: {chi2/8:.1f}", color="sienna")
 
     # Plot delle curve teoriche nel primo subplot
     axs[0].plot(
         th_plot,
         compton_energy(th_plot, E1, 511.0),
         ":",
-        label="Theoretical 1180 keV (me c²=511 keV)",
+        label="Modello 1173.2 keV",
         color="black",
-        alpha=0.5
+        alpha=0.5,
+        linewidth=4
     )
     axs[0].plot(
         th_plot,
         compton_energy(th_plot, E2, 511.0),
         ":",
-        label="Theoretical 1330 keV (me c²=511 keV)",
+        label="Modello 1332.5 keV",
         color="red",
-        alpha=0.5
+        alpha=0.5,
+        linewidth=4
     )
 
     # Impostazioni del primo subplot
-    axs[0].set_ylabel("Crystal energy μ [keV]")
+    axs[0].set_ylabel("Posizione dei picchi [keV]")
     axs[0].set_title("Compton scattering verification")
     axs[0].legend()
     axs[0].grid(True, linestyle='--', alpha=0.5)
 
-    # Calcolo dei residui per il secondo subplot
-    residuals_mu1 = mu1 - compton_energy(angles, E1, 511.0)
-    residuals_mu2 = mu2 - compton_energy(angles, E2, 511.0)
-
     # Plot dei residui nel secondo subplot
-    axs[1].errorbar(angles, residuals_mu1, yerr=mu1_err, fmt='.', label="Residuals μ₁", color="C0")
-    axs[1].errorbar(angles, residuals_mu2, yerr=mu2_err, fmt='.', label="Residuals μ₂", color="C1")
+    axs[1].errorbar(angles, residuals_mu1, yerr=mu1_err, fmt='o', markersize = 10, linewidth=5, capsize=5, capthick=2, label="Residuals μ₁", color="C0")
+    axs[1].errorbar(angles, residuals_mu2, yerr=mu2_err, fmt='o', markersize = 10, linewidth=5, capsize=5, capthick=2, label="Residuals μ₂", color="C1")
     axs[1].axhline(0, color='gray', linewidth=1.5, linestyle='--')
 
     # Impostazioni del secondo subplot
-    axs[1].set_xlabel("Scattering angle θ [deg]")
-    axs[1].set_ylabel("Residuals [keV]")
-    axs[1].legend()
+    axs[1].set_xlabel("Angolo di scattering θ [deg]")
+    axs[1].set_ylabel("Residui [keV]")
     axs[1].grid(True, linestyle='--', alpha=0.5)
 
     # Layout

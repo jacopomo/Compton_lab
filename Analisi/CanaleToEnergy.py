@@ -62,7 +62,8 @@ for dat_file in DATA_DIR.glob("*.dat"):
     # Apply calibration
     # --------------------------------------------------
     a, b, c = calib_table[calib_key]["coeff calib"]
-    energies = a * channels**2 + b * channels + c
+    alpha = 5364/5218
+    energies = a * (alpha * channels)**2 + b * (alpha * channels) + c
 
     # --------------------------------------------------
     # Save output

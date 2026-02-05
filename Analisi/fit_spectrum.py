@@ -12,6 +12,9 @@ import matplotlib.pyplot as plt
 import json
 from scipy.stats import norm
 
+plt.rcParams.update({'font.size': 22})
+
+
 def load_resolution_coeffs(root, date_str):
     """
     date_str: '021225' -> looks for '02_12_25'
@@ -206,7 +209,7 @@ def main():
     bounds = [
         (650, 800),
         (10, 30),
-        (80, 100),
+        (80, np.inf),
         (5, 70),
         (A0 - 5*np.sqrt(A0), A0 + 5*np.sqrt(A0))
     ]
@@ -228,8 +231,8 @@ def main():
     # Best-fit filtered histograms
     mu_x, sig_x, mu_y, sig_y, A= best_params
 
-    #H_proj = model_projection(best_params, H, xcenters, ycenters)
-    H_proj = model_projection([735, 25, 275, 40, 7000], H, xcenters, ycenters)
+    H_proj = model_projection(best_params, H, xcenters, ycenters)
+    #H_proj = model_projection([735, 25, 275, 40, 7000], H, xcenters, ycenters)
 
     fx = gauss_cdf(xcenters, mu_x, sig_x)[:, None] 
     fy = gauss_cdf(ycenters, mu_y, sig_y)[None, :]
@@ -336,16 +339,16 @@ def main():
         plt.step(
             xcenters,
             data_binned,
-            where="mid",
             label="Data",
-            linewidth=1.5
+            linewidth=1.5,
+            color='dimgray'
         )
         plt.step(
             xcenters,
             H_proj,
-            where="mid",
-            label="MC (filtered)",
-            linewidth=2.5
+            label="MC",
+            linewidth=2.5,
+            color='red'
         )
         #plt.step(
         #    xcenters,
@@ -354,9 +357,9 @@ def main():
         #    label="MC_raw (filtered)",
         #    linewidth=1,
         #)
-        plt.xlabel("Energy in crystal")
-        plt.ylabel("Probability")
-        plt.title(f"Crystal energy spectrum ({deg} deg)")
+        plt.xlabel("Energia [KeV]")
+        plt.ylabel("Conteggi")
+        plt.title(f"Spettro dell'energia depositata a {deg} deg")
         plt.legend()
         plt.tight_layout()
 

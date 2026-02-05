@@ -12,6 +12,8 @@ import json
 import matplotlib.gridspec as gridspec
 
 
+plt.rcParams.update({'font.size': 20})
+
 def compton_peak(E_gamma, theta_deg):
     theta = np.deg2rad(theta_deg)
     mec2 = 511.0  # keV
@@ -108,7 +110,7 @@ def main():
             )
         filepath = files[0]
 
-    energy, counts = np.loadtxt(filepath, unpack=True, skiprows=1)
+    energy, counts_raw = np.loadtxt(filepath, unpack=True, skiprows=1)
 
     cfg = config.get(filepath.name, {})
     use_triple = cfg.get("model", "double") == "triple"
@@ -117,7 +119,8 @@ def main():
 
 
     edges = np.linspace(energy.min(), energy.max(), bins + 1)
-    counts, _ = np.histogram(energy, bins=edges, weights=counts)
+    counts, energy_bins = np.histogram(energy, bins=edges, weights=counts_raw)
+    counts_copy, _ = np.histogram(energy, bins=edges, weights=counts_raw)
     energy = 0.5 * (edges[:-1] + edges[1:])
 
     # physical cut
@@ -240,9 +243,9 @@ def main():
         N1 = A1 * np.sqrt(2 * np.pi) * s1
         N2 = A2 * np.sqrt(2 * np.pi) * s2
 
-        sigma_theta = theta_error / (N1+N2)
+        sigma_theta = theta_error / np.sqrt((N1+N2))
 
-        print(f"sigma_theta = {sigma_theta:.2e} ± 0.00")
+        print(f"sigma_theta = {sigma_theta:.2e}")
 
         # --- Residuals (normalized) ---
         sigma = np.sqrt(np.maximum(counts, 1))  # avoid division by zero
@@ -256,34 +259,38 @@ def main():
         )
 
         # Main plot
-        ax.errorbar(
-            energy, counts,
-            yerr=np.sqrt(counts),
-            fmt='o', markersize=4, capsize=2,
-            label="Dati", color="black"
+        ax.stairs(
+            counts_copy, energy_bins,
+            color="gray"
         )
 
-        ax.plot(Eplot, model_plot, '-', color="red", lw=2, label="Fit totale")
-        ax.plot(Eplot, g1, 'r--', lw=1.5, label="Gaussiana 1")
-        ax.plot(Eplot, g2, 'r:',  lw=1.5, label="Gaussiana 2")
+        ax.errorbar(
+            energy[counts != 0], counts[counts != 0],
+            yerr=np.sqrt(counts[counts != 0]),
+            fmt='.',
+            label="Dati", color="blue"
+        )
+
+        ax.plot(Eplot, model_plot, '-', color="red", lw=2.5, label="Fit totale")
+        ax.plot(Eplot, g1, 'r--', lw=2, label="Gaussiana 1")
+        ax.plot(Eplot, g2, 'r:',  lw=2, label="Gaussiana 2")
 
         if use_triple:
             ax.plot(Eplot, g3, 'b--', lw=1.5, label="Spalla Compton")
 
-        ax.set_ylabel("Counts")
+        ax.set_ylabel("Conteggi")
         ax.set_title(f"{'Tripla' if use_triple else 'Doppia'} Gaussiana ({deg}°)")
         ax.legend()
 
         # Residuals
         axr.axhline(0, color='black', lw=1)
         axr.errorbar(
-            energy, residuals,
-            yerr=np.ones_like(residuals),
-            fmt='o', markersize=4, capsize=2, color="black"
+            energy[counts != 0], residuals[counts != 0],
+            fmt='.', color="blue"
         )
 
         axr.set_xlabel("Energy [keV]")
-        axr.set_ylabel("Pulls")
+        axr.set_ylabel("Residui")
 
         plt.tight_layout()
         plt.show()

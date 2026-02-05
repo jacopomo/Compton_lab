@@ -4,6 +4,8 @@ from scipy.interpolate import UnivariateSpline
 import os
 import json
 
+plt.rcParams.update({'font.size': 25})
+
 _base = os.getcwd()
 _dir = "Dati"
 _subdir = "Measures"
@@ -37,10 +39,13 @@ print(sigma_diff)
 
 fig, ax1 = plt.subplots()
 
-ax1.errorbar(deg, rate_both*1e3, yerr=sigma_rateboth*1e3, fmt='.', label='Rate coincidenze')
-#ax1.errorbar(deg, rate_acc*1e3, yerr=sigma_rate_acc*1e3, fmt='.', label='Rate accidentali')
-ax1.errorbar(deg, rate_diff*1e3, yerr=sigma_diff*1e3, fmt='.', label='Differenza')
 
+ax1.errorbar(deg, rate_both*1e3, yerr=sigma_rateboth*1e3, fmt='o', markersize=14, linewidth=5, capsize=10, label='Coincidenze')
+ax1.errorbar(deg, rate_acc*1e3, yerr=sigma_rate_acc*1e3, fmt='o', markersize=14, linewidth=5, capsize=10, label='Accidentali')
+#ax1.errorbar(deg, rate_diff*1e3, yerr=sigma_diff*1e3, fmt='o', label='Differenza')
+
+
+ax1.set_title("Rate vs angolo")
 ax1.set_ylabel('Rate delle coincidenze [#/s]')
 ax1.set_xlabel('Angolo [deg]')
 ax1.grid()
@@ -53,5 +58,5 @@ ax2.set_ylabel('Rate PMT2 [#/ms]')
 ax2.grid(linestyle='--')
 '''
 
-fig.legend()
+ax1.legend()
 plt.show()
