@@ -5,9 +5,9 @@ import numpy as np
 import subprocess
 import re
 from pathlib import Path
-from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 import json
+from scipy import stats
 
 E1 = 1332.0
 E2 = 1173.0
@@ -123,87 +123,92 @@ def main():
         (dcompton_dtheta(angles, E2, ME_C2) * theta_err)**2
     )
 
-
     # ----------------------------
-    # Fit Compton curves
+    # Residuals (normalized) and chi2
     # ----------------------------
+    # model predictions using real ME value
+    model1 = compton_energy(angles, E1, ME_C2)
+    model2 = compton_energy(angles, E2, ME_C2)
 
-    popt1, pcov1 = curve_fit(
-        lambda th, me: compton_energy(th, E1, me),
-        angles,
-        mu1,
-        sigma=sigma_mu1_eff,
-        absolute_sigma=True,
-        p0=[ME_C2]
-    )
+    # normalized residuals (using the variances above)
+    res1 = (mu1 - model1) / sigma_mu1_eff
+    res2 = (mu2 - model2) / sigma_mu2_eff
 
-    popt2, pcov2 = curve_fit(
-        lambda th, me: compton_energy(th, E2, me),
-        angles,
-        mu2,
-        sigma=sigma_mu2_eff,
-        absolute_sigma=True,
-        p0=[ME_C2]
-    )
-
-    me1 = popt1[0]
-    me2 = popt2[0]
-    me1_err = np.sqrt(pcov1[0,0])
-    me2_err = np.sqrt(pcov2[0,0])
-
-    print("\n=== COMPTON FIT RESULTS ===")
-    print(f"me c^2 (1180 keV line) = {me1:.1f} ± {me1_err:.1f} keV")
-    print(f"me c^2 (1330 keV line) = {me2:.1f} ± {me2_err:.1f} keV")
+    # chi2 and ndof using total least-squares variance
+    chi2_1 = np.sum(res1**2)
+    chi2_2 = np.sum(res2**2)
+    ndof_1 = len(angles) - 1
+    ndof_2 = len(angles) - 1
 
     # ----------------------------
     # Plot with fits and error bars
     # ----------------------------
     th_plot = np.linspace(angles.min(), angles.max(), 500)
 
-    plt.figure(figsize=(7, 5))
-    plt.errorbar(angles, mu1, xerr=theta_err, yerr=mu1_err, label="μ₁ (1180 keV)", fmt="o", capsize=3, color="C0")
-    plt.errorbar(angles, mu2, xerr=theta_err, yerr=mu2_err, label="μ₂ (1330 keV)", fmt="s", capsize=3, color="C1")
-
-    plt.plot(
-        th_plot,
-        compton_energy(th_plot, E1, me1),
-        "--",
-        label=f"Compton 1180 keV (me c²={me1:.0f} keV)",
-        color="C0"
-    )
-    plt.plot(
-        th_plot,
-        compton_energy(th_plot, E2, me2),
-        "--",
-        label=f"Compton 1330 keV (me c²={me2:.0f} keV)",
-        color="C1"
+    # create main + residuals subplot
+    fig, (ax1, ax2) = plt.subplots(
+        2,
+        1,
+        figsize=(7, 6),
+        gridspec_kw={"height_ratios": [3, 1]},
+        sharex=True,
     )
 
-    # plot real compton curves at 511 keV
-    plt.plot(
-        th_plot,
-        compton_energy(th_plot, E1, 511.0),
-        ":",
-        label="Theoretical 1180 keV (me c²=511 keV)",
-        color="black",
-        alpha=0.5
-    )
-    plt.plot(
-        th_plot,
-        compton_energy(th_plot, E2, 511.0),
-        ":",
-        label="Theoretical 1330 keV (me c²=511 keV)",
-        color="red",
-        alpha=0.5
-    )
+    # upper: data and model (original errorbars kept)
+    ax1.errorbar(angles, mu1, xerr=theta_err, yerr=mu1_err, label="μ₁ (1173.2 keV)", fmt="o", capsize=3, color="C0")
+    ax1.errorbar(angles, mu2, xerr=theta_err, yerr=mu2_err, label="μ₂ (1332.5 keV)", fmt="s", capsize=3, color="C1")
+
+    # plot reference Compton curves at 511 keV
+    ax1.plot(th_plot, compton_energy(th_plot, E1, 511.0), ":", label="Modello 1173.2 keV", color="C0", alpha=0.7)
+    ax1.plot(th_plot, compton_energy(th_plot, E2, 511.0), ":", label="Modello 1332.5 keV", color="C1", alpha=0.7)
+
+    ax1.set_ylabel("Posizione dei picchi μ [keV]")
+    ax1.set_title("Verifica scattering Compton")
+    ax1.legend()
+    ax1.grid(True, which="both", linestyle="--", alpha=0.4)
 
 
-    plt.xlabel("Scattering angle θ [deg]")
-    plt.ylabel("Crystal energy μ [keV]")
-    plt.title("Compton scattering verification")
-    plt.legend()
+    # Configuration for both lines
+    text_props = dict(
+        transform=ax1.transAxes,
+        va="bottom",
+        fontsize=9,
+        bbox=dict(facecolor="white", alpha=0.7, edgecolor="none")
+    )
+
+    # First line (C0)
+    ax1.text(
+        0.02, 0.09, 
+        f"$\\chi^2_{{\\mathrm{{eff}}}}$/ndof (1173.2 keV) = {chi2_1:.1f}/{ndof_1} = {chi2_1/ndof_1:.2f}",
+        color="C0", 
+        **text_props
+    )
+
+    # Second line (C1) - shifted down slightly (adjust 0.05 based on your font size/scaling)
+    ax1.text(
+        0.02, 0.02, 
+        f"$\\chi^2_{{\\mathrm{{eff}}}}$/ndof (1332.5 keV) = {chi2_2:.1f}/{ndof_2} = {chi2_2/ndof_2:.2f}",
+        color="C1", 
+        **text_props
+    )
+
+    # lower: residuals plot (normalized)
+    ax2.axhline(0.0, color="k", ls="--", alpha=0.7)
+    ax2.plot(angles, res1, "o", color="C0", label="resid μ₁")
+    ax2.plot(angles, res2, "s", color="C1", label="resid μ₂")
+    ax2.set_xlabel("Angolo di scattering [deg]")
+    ax2.set_ylabel("Residui efficaci normalizzati")
+    ax2.grid(True, which="both", linestyle="--", alpha=0.4)
+    ax2.legend(ncol=2, fontsize=8)
+
     plt.tight_layout()
     plt.show()
+
+    p_value = stats.chi2.sf(chi2_1, ndof_1)
+    print(f"P-value for 1173.2 keV: {p_value:.4e}")
+
+    p_value = stats.chi2.sf(chi2_2, ndof_2)
+    print(f"P-value for 1332.5 keV: {p_value:.4e}")
 
 if __name__ == "__main__":
     main()

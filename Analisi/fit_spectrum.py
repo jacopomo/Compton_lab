@@ -82,15 +82,20 @@ def model_projection(params, H, xcenters, ycenters):
 # ----------------------------
 # Poisson -2 log L
 # ----------------------------
-def neg2loglike(params, H, xcenters, ycenters, data):
+def neg2loglike(params, H, xcenters, ycenters, data, mask_range):
     model = model_projection(params, H, xcenters, ycenters)
+    
+    # Clip to avoid log(0)
     model = np.clip(model, 1e-12, None)
     data  = np.clip(data,  0.0, None)
 
-    mask = data > 0
+    # Apply the energy range mask AND the data > 0 mask
+    active_mask = mask_range & (data > 0)
+    
+    # Poisson Likelihood calculated only on the selected range
     return 2.0 * (
-        np.sum(model - data) +
-        np.sum(data[mask] * np.log(data[mask] / model[mask]))
+        np.sum(model[mask_range] - data[mask_range]) +
+        np.sum(data[active_mask] * np.log(data[active_mask] / model[active_mask]))
     )
 # ----------------------------
 # Main
@@ -136,7 +141,7 @@ def main():
     xcenters = 0.5 * (xedges[:-1] + xedges[1:])
     ycenters = 0.5 * (yedges[:-1] + yedges[1:])
     
-    # Rebin MC 2D histogram to desired number of bins
+    # Rebin Istogramma 2D MC to desired number of bins
     xmin, xmax = xedges[0], xedges[-1]
     xedges_new = np.linspace(xmin, xmax, n_bins + 1)
 
@@ -149,6 +154,8 @@ def main():
 
     xedges = xedges_new
     xcenters = 0.5 * (xedges[:-1] + xedges[1:])
+    mask_range = (xcenters >= 650) & (xcenters <= 1150)
+
     data_dir = (
         root
         / "Dati"
@@ -182,9 +189,9 @@ def main():
     # ----------------------------
     x0 = [
         700.0,  # mu_x
-        25,       # sig_x
-        60,  # mu_y
-        15,       # sig_y
+        20,       # sig_x
+        450,  # mu_y
+        90,       # sig_y
         np.sum(data_binned) / np.sum(H)  # A
     ]
 
@@ -199,9 +206,10 @@ def main():
     res = minimize(
         neg2loglike,
         x0=x0,
-        args=(H, xcenters, ycenters, data_binned),
+        args=(H, xcenters, ycenters, data_binned, mask_range),
         method="L-BFGS-B",
         bounds=bounds,
+        
     )
 
 
@@ -235,14 +243,17 @@ def main():
     # Goodness of fit
     # ----------------------------
     mask = data_binned > 0
-    ndof = np.count_nonzero(mask) - len(res.x)
+    bins_in_range = np.count_nonzero(mask_range & mask)
+    ndof = bins_in_range - len(res.x)    
     chi2_val = res.fun
     pval = 1.0 - chi2.cdf(chi2_val, ndof)
 
     print("\n=== GOODNESS OF FIT ===")
+    print(f"Chi2 value: {chi2_val:.2f}")
     print(f"-2 ln L = {chi2_val:.2f}")
     print(f"ndof    = {ndof}")
     print(f"p-value = {pval:.3f}")
+    print(f"chi2/ndof = {chi2_val/ndof:.2f}")
 
 
     # ----------------------------
@@ -255,7 +266,7 @@ def main():
         return ListedColormap(colors)
     if vis:
         
-        # --- 1. Original MC 2D histogram ---
+        # --- 1. Original Istogramma 2D MC ---
         newcmap = transparent_zero_cmap()
         plt.figure(figsize=(7, 5))
         plt.pcolormesh(
@@ -263,13 +274,13 @@ def main():
             cmap=newcmap,
             shading="auto"
         )
-        plt.xlabel("Energy in crystal")
-        plt.ylabel("Energy in plastic")
-        plt.title(f"Original MC 2D histogram ({deg} deg)")
+        plt.xlabel("Energia depositata nel cristallo")
+        plt.ylabel("Energia depositata nel plastico")
+        plt.title(f"Originale Istogramma 2D MC ({deg} deg)")
         plt.colorbar(label="Counts")
         plt.tight_layout()
         plt.show()
-        # --- 2. Smeared MC 2D histogram ---
+        # --- 2. Smeared Istogramma 2D MC ---
         newcmap = transparent_zero_cmap()
         plt.figure(figsize=(7, 5))
         plt.pcolormesh(
@@ -277,13 +288,13 @@ def main():
             cmap=newcmap,
             shading="auto"
         )
-        plt.xlabel("Energy in crystal")
-        plt.ylabel("Energy in plastic")
-        plt.title(f"Original MC 2D histogram ({deg} deg)")
+        plt.xlabel("Energia depositata nel cristallo")
+        plt.ylabel("Energia depositata nel plastico")
+        plt.title(f"Smeared Istogramma 2D MC ({deg} deg)")
         plt.colorbar(label="Counts")
         plt.tight_layout()
         plt.show()
-        # --- 3. Filtered MC 2D histogram ---
+        # --- 3. Filtered Istogramma 2D MC ---
         newcmap = transparent_zero_cmap()
         plt.figure(figsize=(7, 5))
         plt.pcolormesh(
@@ -291,9 +302,9 @@ def main():
             cmap=newcmap,
             shading="auto"
         )
-        plt.xlabel("Energy in crystal")
-        plt.ylabel("Energy in plastic")
-        plt.title(f"Filtered MC 2D histogram (best fit {deg} deg)")
+        plt.xlabel("Energia depositata nel cristallo")
+        plt.ylabel("Energia depositata nel plastico")
+        plt.title(f"Filtrato Istogramma 2D MC (best fit {deg} deg)")
         plt.colorbar(label="Counts")
         plt.tight_layout()
         plt.show()
@@ -305,18 +316,20 @@ def main():
             data_binned,
             where="mid",
             label="Data",
-            linewidth=1.5
+            linewidth=1.5,
+            color="black"
         )
         plt.step(
             xcenters,
             H_proj,
             where="mid",
             label="MC (filtered)",
-            linewidth=1.5
+            linewidth=1.5,
+            color="red"
         )
-        plt.xlabel("Energy in crystal")
-        plt.ylabel("Probability")
-        plt.title(f"Crystal energy spectrum ({deg} deg)")
+        plt.xlabel("Energia depositata nel cristallo")
+        plt.ylabel("Probabilità")
+        plt.title(f"Spettro dell'energia del cristallo ({deg} deg)")
         plt.legend()
         plt.tight_layout()
 

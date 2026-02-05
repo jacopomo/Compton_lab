@@ -368,11 +368,14 @@ def plot_histogram(data, weights=None, bins=50, range=None, density=False, title
         bins=bins,
         range=range,
         weights=w,
-        density=density
+        density=density,
+        histtype='step',
+        color='blue',
+        alpha=0.7,
     )
 
-    ax.set_xlabel("Value")
-    ax.set_ylabel("Density" if density else "Weighted counts")
+    ax.set_xlabel("Energia [keV]")
+    ax.set_ylabel("Density" if density else "Conteggi pesati")
 
     if title is not None:
         ax.set_title(title)

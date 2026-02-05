@@ -1,7 +1,7 @@
 {
-"0deg_261125_EnergieC.txt": {
+"0deg_031225_EnergieC.txt": {
     "degree": 0,
-    "theta_error": 2.198,
+    "theta_error": 0.7216,
     "model": "triple",
     "init": {
     "mu1": 1323,
@@ -19,7 +19,7 @@
 
 "10deg_041225_EnergieC.txt": {
     "degree": 10,
-    "theta_error": 2.198,
+    "theta_error": 0.7216,
     "model": "triple",
     "init": {
     "mu1": 1279,
@@ -37,7 +37,7 @@
 
 "15deg_111225_EnergieC.txt": {
     "degree": 15,
-    "theta_error": 2.198,
+    "theta_error": 0.7216,
     "model": "triple",
     "init": {
     "mu1": 1222,
@@ -53,27 +53,9 @@
     }
 },
 
-"15deg_251125_EnergieC.txt": {
-    "degree": 15,
-    "theta_error": 2.198,    
-    "model": "triple",
-    "init": {
-    "mu1": 1222,
-    "mu2": 1090,
-    "mu3": 850,
-    "sigma1": 24,
-    "sigma2": 26,
-    "sigma3": 30,
-    "A1": 450,
-    "A2": 400,
-    "A3": 300,
-    "E_cutoff": 1400.0
-    }
-},
-
 "20deg_251125_EnergieC.txt": {
     "degree": 20,
-    "theta_error": 2.198,
+    "theta_error": 0.7216,
     "model": "triple",
     "init": {
     "mu1": 1150,
@@ -85,13 +67,13 @@
     "A1": 456,
     "A2": 612,
     "A3": 322,
-    "E_cutoff": 1400.0
+    "E_cutoff": 1200.0
     }
 },
 
 "25deg_261125_EnergieC.txt": {
     "degree": 25,
-    "theta_error": 2.198,
+    "theta_error": 0.7216,
     "model": "triple",
     "init": {
     "mu1": 1067,
@@ -100,61 +82,47 @@
     "sigma1": 24,
     "sigma2": 26,
     "sigma3": 26,
-    "A1": 6000,
-    "A2": 5000,
+    "A1": 4000,
+    "A2": 10000,
     "A3": 3140,
-    "E_cutoff": 1200.0
+    "E_cutoff": 1150.0
     }
 },
 
-"30deg_021225_EnergieC.txt": {
-    "degree": 30,
-    "theta_error": 2.198,
-    "model": "double",
-    "init": {
-    "mu1": 980,
-    "mu2": 886,
-    "sigma1": 24,
-    "sigma2": 26,
-    "A1": 800,
-    "A2": 800,
-    "E_cutoff": 1200.0
-    }
-},
 
 "30deg_201125_EnergieC.txt": {
     "degree": 30,
-    "theta_error": 2.198,
+    "theta_error": 0.7216,
     "model": "double",
     "init": {
-    "mu1": 980,
-    "mu2": 886,
+    "mu1": 950,
+    "mu2": 766,
     "sigma1": 24,
     "sigma2": 26,
     "A1": 800,
-    "A2": 800,
-    "E_cutoff": 1200.0
+    "A2": 500,
+    "E_cutoff": 1050.0
     }
 },
 
 "35deg_271125_EnergieC.txt": {
     "degree": 35,
-    "theta_error": 2.198,
+    "theta_error": 0.7216,
     "model": "double",
     "init": {
     "mu1": 913,
-    "mu2": 820,
+    "mu2": 860,
     "sigma1": 24,
     "sigma2": 26,
-    "A1": 600,
+    "A1": 400,
     "A2": 600,
-    "E_cutoff": 1100.0
+    "E_cutoff": 1020.0
     }
 },
 
 "40deg_031225_EnergieC.txt": {
     "degree": 40,
-    "theta_error": 2.198,
+    "theta_error": 0.7216,
     "model": "double",
     "init": {
     "mu1": 830,

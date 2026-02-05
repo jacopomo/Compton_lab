@@ -255,7 +255,7 @@ def main():
             energy, counts,
             yerr=np.sqrt(counts),
             fmt='o', markersize=4, capsize=2,
-            label="Dati", color="black"
+            label="Dati", color="blue"
         )
 
         ax.plot(Eplot, model_plot, '-', color="red", lw=2, label="Fit totale")
@@ -267,14 +267,15 @@ def main():
 
         ax.set_ylabel("Counts")
         ax.set_title(f"{'Tripla' if use_triple else 'Doppia'} Gaussiana ({deg}°)")
+        ax.set_xlim(600, E_cutoff + 100)
         ax.legend()
 
         # Residuals
-        axr.axhline(0, color='black', lw=1)
+        axr.axhline(0, color='blue', lw=1)
         axr.errorbar(
             energy, residuals,
             yerr=np.ones_like(residuals),
-            fmt='o', markersize=4, capsize=2, color="black"
+            fmt='o', markersize=4, capsize=2, color="blue"
         )
 
         axr.set_xlabel("Energy [keV]")
